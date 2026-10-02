@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 应用分流要列出已安装应用。Android 11+ 不加这个只能看到自己。
+         侧载无妨；若要上架 Google Play 需额外填「读取应用列表」用途声明。 -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <application
+        android:name=".App"
+        android:allowBackup="false"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:usesCleartextTraffic="true"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.VpnShare">
+
+        <activity
+            android:name=".ui.MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- 深链导入：vpnshare://import?url=<编码后的订阅地址>
+                 机场页面/浏览器点一下就进来，省掉「复制 → 切 App → 粘贴」。
+                 不静默导入：进来先弹确认框显示域名，链接可能来自任意网页。 -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="vpnshare" android:host="import" />
+            </intent-filter>
+        </activity>
+
+        <activity android:name=".ui.ProxyActivity" android:exported="false" android:label="@string/title_nodes" />
+        <activity android:name=".ui.ConnectionsActivity" android:exported="false" android:label="@string/title_connections" />
+        <activity android:name=".ui.LogsActivity" android:exported="false" android:label="@string/title_logs" />
+        <activity android:name=".ui.ClientsActivity" android:exported="false" android:label="@string/title_clients" />
+        <activity android:name=".ui.ProfilesActivity" android:exported="false" />
+        <activity android:name=".ui.AppSplitActivity" android:exported="false" />
+        <activity android:name=".ui.SplitActivity" android:exported="false" />
+        <activity android:name=".ui.NetworkActivity" android:exported="false" />
+        <activity android:name=".ui.DiagnoseActivity" android:exported="false" />
+        <activity android:name=".ui.BootstrapActivity" android:exported="false" />
+        <activity android:name=".ui.TrafficActivity" android:exported="false" android:theme="@style/Theme.VpnShare" />
+        <activity android:name=".ui.RuleMatchActivity" android:exported="false" />
+        <activity android:name=".ui.PropertiesActivity" android:exported="false" />
+        <activity android:name=".ui.PermissionActivity" android:exported="false" />
+        <activity android:name=".ui.CrashActivity" android:exported="false" />
+        <activity android:name=".ui.RulesActivity" android:exported="false" />
+        <activity android:name=".ui.ProvidersActivity" android:exported="false" android:label="@string/title_providers" />
+
+        <service
+            android:name=".service.ShareService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Runs a user-supplied proxy core as root and maintains tethering route rules on the user's own device." />
+        </service>
+
+        <service
+            android:name=".tile.ShareTile"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <receiver
+            android:name=".service.BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

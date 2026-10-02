@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="md_primary">#A9C7FF</color>
+    <color name="md_on_primary">#002E69</color>
+    <color name="md_primary_container">#1E4376</color>
+    <color name="md_on_primary_container">#D6E3FF</color>
+    <color name="md_secondary">#4CD9E3</color>
+    <color name="md_on_secondary">#00363A</color>
+    <color name="md_secondary_container">#004F53</color>
+    <color name="md_on_secondary_container">#6FF6FF</color>
+
+    <color name="md_background">#121212</color>
+    <color name="md_on_background">#E3E2E6</color>
+    <color name="md_surface">#202020</color>
+    <color name="md_on_surface">#E3E2E6</color>
+    <color name="md_surface_variant">#2B2B2B</color>
+    <color name="md_on_surface_variant">#C4C6CF</color>
+    <color name="md_outline">#8E9099</color>
+    <color name="md_outline_variant">#3A3B3F</color>
+
+    <color name="md_error">#FFB4AB</color>
+    <color name="md_on_error">#690005</color>
+
+    <color name="state_running">#81C995</color>
+    <color name="state_running_container">#1B3D22</color>
+    <color name="state_running_on_container">#B7F0C0</color>
+    <color name="state_stopped">#9AA0A6</color>
+    <color name="state_stopped_container">#2E3033</color>
+    <color name="state_stopped_on_container">#E8EAED</color>
+    <color name="state_warn">#FFB74D</color>
+    <color name="state_warn_container">#3D2A00</color>
+    <color name="state_warn_on_container">#FFE0B2</color>
+    <color name="node_card_bg">#FF202020</color>
+    <color name="node_card_stroke">#33FFFFFF</color>
+</resources>

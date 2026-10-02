@@ -1,0 +1,86 @@
+# VpnShare 主配置模板
+# 由 ConfigBuilder 在此基础上注入 [proxy-providers] 与 [rules]，生成最终 config.yaml。
+# 管控段：tun / redir-port / tproxy-port / dns / geox-url —— 订阅内容不得覆盖。
+
+mixed-port: 7890
+redir-port: 7892
+tproxy-port: 7893
+allow-lan: true
+bind-address: "*"
+mode: rule
+log-level: info
+ipv6: false
+unified-delay: true
+tcp-concurrent: true
+# 不要用 strict：内核会为每条连接反查进程，App 发起的连接会卡住导致探测超时。
+# 我们的规则完全不依赖 PROCESS-*，所以直接关掉。
+find-process-mode: off
+
+external-controller: 127.0.0.1:9090
+external-controller-cors:
+  allow-origins: ["*"]
+  allow-private-network: true
+
+profile:
+  store-selected: true
+  store-fake-ip: true
+
+# ===== 内置 geo 数据（首启从 assets 解压到工作目录，断网也有规则）=====
+geodata-mode: false
+geo-auto-update: true
+geo-update-interval: 24
+geox-url:
+  mmdb:    "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geoip.metadb"
+  geosite: "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geosite.dat"
+  geoip:   "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geoip.dat"
+  asn:     "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/GeoLite2-ASN.mmdb"
+
+tun:
+  enable: true
+  stack: mixed
+  auto-route: true
+  auto-detect-interface: true
+  routing-mark: 2024
+  dns-hijack:
+    - any:53
+
+dns:
+  enable: true
+  listen: 0.0.0.0:1053
+  ipv6: false
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+  fake-ip-filter:
+    - "*.lan"
+    - "+.local"
+    - "*.localdomain"
+  default-nameserver:
+    - 223.5.5.5
+    - 119.29.29.29
+  # 只用国内 DoH。绝不能配 1.1.1.1 / 8.8.8.8 之类的 fallback：
+  # 国内连不上它们，而 fallback-filter 会把「解析到境外 IP 的域名」
+  # （首当其冲就是代理节点自己的域名）丢给 fallback，
+  # 结果节点域名解析必定超时，表现为「内核起来了但一个节点都连不上」。
+  nameserver:
+    - https://223.5.5.5/dns-query
+    - https://1.12.12.12/dns-query
+    - https://doh.pub/dns-query
+
+# ===== 默认规则：国内 / B 站零配置直连，不烧梯子流量 =====
+# 仅依赖内核内置 geo 数据，不需要任何外部规则集或手工填写域名。
+# 若 assets/ruleset/ 下的本地规则集存在，ConfigBuilder 会在 rules 之前
+# 追加对应的 rule-providers 段并改用 RULE-SET 形式（便于单独调整某一类出口）。
+rules:
+  - GEOSITE,private,DIRECT
+  - IP-CIDR,192.168.0.0/16,DIRECT,no-resolve
+  - IP-CIDR,10.0.0.0/8,DIRECT,no-resolve
+  - IP-CIDR,172.16.0.0/12,DIRECT,no-resolve
+  - GEOSITE,bilibili,DIRECT
+  - GEOSITE,category-ads-all,REJECT
+  - GEOSITE,cn,DIRECT
+  # 纯 IP 连接按国籍判国内。必须带 no-resolve：
+  # 不带的话内核会为了匹配这条去解析域名，而本地 DNS 被污染，
+  # 境外域名会解析成 CN 段 IP → 被误判成国内直连 → 上不去。
+  # 带上它，只有本来就拿着 IP 的连接才查国籍，域名连接一律跳过。
+  - GEOIP,CN,DIRECT,no-resolve
+  - MATCH,PROXY

@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="?attr/selectableItemBackground"
+    android:clickable="true"
+    android:focusable="true"
+    android:gravity="center_vertical"
+    android:minHeight="@dimen/entry_min_height"
+    android:orientation="horizontal"
+    android:paddingVertical="10dp">
+
+    <FrameLayout
+        android:layout_width="@dimen/entry_icon_box"
+        android:layout_height="@dimen/entry_icon_box"
+        android:background="@drawable/bg_icon_box">
+
+        <ImageView
+            android:id="@+id/ivEntryIcon"
+            android:layout_width="@dimen/entry_icon_size"
+            android:layout_height="@dimen/entry_icon_size"
+            android:layout_gravity="center"
+            android:importantForAccessibility="no"
+            app:tint="?attr/colorOnSecondaryContainer" />
+    </FrameLayout>
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/tvEntryTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textAppearance="@style/TextAppearance.Material3.BodyLarge"
+            android:textSize="@dimen/text_row_title" />
+
+        <TextView
+            android:id="@+id/tvEntrySub"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textAppearance="@style/TextAppearance.Material3.BodySmall"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:textSize="@dimen/text_row_sub" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/tvEntryTrail"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="6dp"
+        android:ellipsize="end"
+        android:gravity="end"
+        android:maxLines="1"
+        android:maxWidth="@dimen/trail_max_width"
+        android:textAppearance="@style/TextAppearance.Material3.LabelMedium"
+        android:textColor="?attr/colorOnSurfaceVariant" />
+
+    <ImageView
+        android:layout_width="18dp"
+        android:layout_height="18dp"
+        android:importantForAccessibility="no"
+        android:src="@drawable/ic_chevron"
+        app:tint="?attr/colorOutline" />
+</LinearLayout>

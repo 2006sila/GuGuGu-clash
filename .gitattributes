@@ -1,0 +1,27 @@
+# 统一换行符：否则 Windows 提交、Linux 检出时会整片显示为「文件已修改」
+* text=auto eol=lf
+
+# 脚本按各自平台的习惯
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+*.sh  text eol=lf
+
+# 二进制，禁止任何转换
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gz    binary
+*.jar   binary
+*.dat   binary
+*.metadb binary
+*.mmdb  binary
+*.apk   binary
+*.jks   binary
+*.keystore binary
+
+# 语言统计时把生成物排除掉
+docs/*.png linguist-documentation
+app/src/main/assets/geo/* linguist-vendored
+app/src/main/assets/ruleset/* linguist-vendored
+app/src/arm64/assets/mihomo/* linguist-vendored
+app/src/armv7/assets/mihomo/* linguist-vendored

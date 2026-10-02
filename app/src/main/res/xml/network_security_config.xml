@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  必须放行明文 HTTP，否则 targetSdk 28+ 的网络安全策略会直接掐掉所有 http:// 请求：
+    - 内核 REST：http://127.0.0.1:9090（OkHttp 会抛 CLEARTEXT communication not permitted）
+    - 不少机场的订阅地址本身就是 http://
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

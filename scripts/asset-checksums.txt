@@ -1,0 +1,25 @@
+# VpnShare 内置资产校验基准
+#
+# 用途：构建可复现 —— 换机器 / 换时间重新拉取后，与下表比对即可确认没有版本漂移。
+# 复核命令: powershell -File scripts/verify-assets.ps1
+#
+# 生成方式与验证状态（2026-xx 实测）：
+#   geosite.dat  与 meta-rules-dat 官方 .sha256sum 逐字节一致  ✅ 上游已核验
+#   geoip.metadb 与 meta-rules-dat 官方 .sha256sum 逐字节一致  ✅ 上游已核验
+#   内核         mihomo 官方不提供校验文件（v1.19.32 的 60 个资产里 0 个 checksum）
+#                改为完整性校验：gzip 解压总长 == ISIZE，且为正确 e_machine 的 ELF  ✅ 本地已核验
+
+### 内核（app/src/<flavor>/assets/mihomo/mihomo.gz）
+# arm64-v8a   20.85 MB  解压 61.08 MB  ELF64 e_machine=0xB7(AArch64)  CRC32=0358688d
+sha256  42b1f2be8702484d3ae6238daab392622f54bd0d264966700f1f28f52596e326  app/src/arm64/assets/mihomo/mihomo.gz
+# armeabi-v7a 21.16 MB  解压 56.82 MB  ELF32 e_machine=0x28(ARM)        CRC32=444942ff
+sha256  cbac13a26ab77ce80871a064783a02246a856a20ab7435fe301fa1665e99acf4  app/src/armv7/assets/mihomo/mihomo.gz
+
+### geo 规则数据（app/src/main/assets/geo/）
+sha256  d8b751e6af6063bbacf0cbc23385fd37caac1c0e04e05292b5e97213a98ef5fc  app/src/main/assets/geo/geosite.dat
+sha256  f8f0c314cb184e3d998ce3fe17314611ae0290921ba1917f3340c3621cfe2698  app/src/main/assets/geo/geoip.metadb
+
+### 来源
+# 内核      https://github.com/MetaCubeX/mihomo/releases/tag/v1.19.32
+# geo 数据  https://github.com/MetaCubeX/meta-rules-dat/releases/tag/latest
+# 规则集    https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/

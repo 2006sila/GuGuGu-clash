@@ -1,0 +1,34 @@
+VpnShare
+Copyright 2026 VpnShare contributors
+
+本产品包含以下第三方组件与移植代码：
+
+1. Mygod/VPNHotspot  (Apache License 2.0)
+   https://github.com/Mygod/VPNHotspot
+   移植内容：共享接口检测与状态枚举、tethering hardware offload 控制
+   （tether_offload_disabled）、iptables / ip rule 接管规则构造与清理思路。
+   对应源文件 net/TetherOffloadManager.kt、net/TetheringManagerCompat.kt、
+   net/TetherStates.kt、net/TetherType.kt、net/Routing.kt、RoutingManager.kt、
+   root/RootManager.kt。派生文件头部保留原版权声明。
+
+2. MetaCubeX/mihomo  (GNU General Public License v3.0)
+   https://github.com/MetaCubeX/mihomo
+   以未修改的官方预编译二进制形式随 APK 分发（按 ABI flavor 打入 assets/mihomo/mihomo.gz）。
+   许可全文见 app/src/main/assets/mihomo/LICENSE.mihomo（GPL-3.0, 35149 bytes）。
+
+   合规说明：本应用与 mihomo 为相互独立的程序 —— 应用仅以 root 启动该二进制，
+   并通过其 localhost REST API 通信，不做静态/动态链接，也不修改其源代码，
+   属于聚合分发，因此本应用自身许可（Apache-2.0）不受 GPL 传染。
+
+   对外分发时需满足：
+     a) 随包附带 GPL-3.0 全文（本仓库已包含）；
+     b) 提供对应源代码，即 https://github.com/MetaCubeX/mihomo 上对应 tag 的原始代码
+        （可附书面 offer）；
+     c) 若日后修改 mihomo 源码再分发，修改部分必须以 GPL-3.0 开源。
+
+3. MetaCubeX/meta-rules-dat
+   https://github.com/MetaCubeX/meta-rules-dat
+   以未修改的数据文件形式内置（geosite.dat / geoip.metadb），以及从中抽取的
+   规则集子集（assets/ruleset/*.yaml）。
+
+本项目不包含、不链接 ClashMetaForAndroid 的任何代码。

@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">咕咕咕clash</string>
+
+    <!-- 主界面 -->
+    <string name="action_state_running">运行中</string>
+    <string name="action_state_stopped">已停止</string>
+    <string name="action_state_error">出错</string>
+    <string name="action_state_busy">处理中…</string>
+    <string name="action_sub_stopped">打开右侧开关开始共享</string>
+    <string name="label_rules">接管规则</string>
+    <string name="label_offload">共享硬件加速</string>
+    <string name="value_offload_absent">无此开关</string>
+    <string name="value_offload_on">已关闭</string>
+    <string name="value_offload_off">未关闭</string>
+    <string name="value_off">关</string>
+    <string name="action_copy">复制</string>
+
+    <string name="section_runtime">运行</string>
+    <string name="section_config">配置</string>
+    <string name="section_advanced">排障</string>
+
+    <string name="entry_split">分流</string>
+    <string name="sub_split">规则 · 节点 · 应用，决定什么流量走哪里</string>
+    <string name="entry_network">网络</string>
+    <string name="sub_network">端口 · DNS · 嗅探 · 栈与外部控制</string>
+    <string name="entry_diagnose">诊断</string>
+    <string name="sub_diagnose">权限 · 运行属性 · 内核数据 · 日志 · 紧急恢复</string>
+    <string name="entry_theme">切换主题</string>
+    <string name="entry_nodes">节点</string>
+    <string name="entry_connections">连接</string>
+    <string name="entry_clients">已连设备</string>
+    <string name="entry_profiles">订阅</string>
+    <string name="sub_profiles">余量 · 更新 · 导入 · 供应商</string>
+    <string name="entry_bootstrap">内核与规则数据</string>
+
+    <string name="sub_nodes">策略组、节点切换与延迟测速</string>
+    <string name="sub_connections">实时连接、命中规则与出口</string>
+    <string name="sub_clients">已连设备与按设备屏蔽</string>
+
+    <!-- 二级页标题 -->
+    <string name="title_nodes">节点</string>
+    <string name="title_connections">连接</string>
+    <string name="title_clients">已连设备</string>
+    <string name="title_providers">供应商</string>
+    <string name="title_logs">日志</string>
+
+    <!-- 对话框 -->
+    <string name="dlg_sub_title">导入订阅</string>
+    <string name="dlg_sub_message">支持 Clash YAML 订阅与 base64 分享链接订阅，导入后会自动合成配置并用内核自检。</string>
+    <string name="dlg_sub_hint">https://example.com/api/v1/client/subscribe?token=…</string>
+    <string name="action_import">导入</string>
+    <string name="action_update_current">更新当前订阅</string>
+    <string name="action_cancel">取消</string>
+    <string name="action_save">保存</string>
+    <string name="action_ok">知道了</string>
+</resources>

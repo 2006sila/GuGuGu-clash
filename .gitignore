@@ -1,0 +1,40 @@
+# ---- Gradle / Android ----
+.gradle/
+build/
+*/build/
+captures/
+.cxx/
+.externalNativeBuild/
+local.properties
+*.iml
+.idea/
+.kotlin/
+
+# ---- 签名（绝不可入库）----
+*.jks
+*.keystore
+keystore.properties
+signing.properties
+
+# ---- 构建产物 ----
+*.apk
+*.aab
+*.ap_
+*.dex
+output.json
+
+# ---- 调试临时文件 ----
+*.log
+ui.xml
+screen*.png
+tmp/
+_porttest.sh
+
+# ---- 别名：内置资产由 scripts/fetch-*.ps1 生成 ----
+# 注意：mihomo.gz / geoip.metadb / geosite.dat 是**需要入库**的，
+# 因为 GPL-3.0 要求随二进制分发提供对应内容，且保证 clone 后可离线构建。
+# 它们的校验基准在 scripts/asset-checksums.txt。
+
+# ---- 系统 ----
+Thumbs.db
+.DS_Store

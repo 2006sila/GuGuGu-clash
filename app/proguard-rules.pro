@@ -1,0 +1,3 @@
+-keep class io.vpnshare.** { *; }
+-dontwarn okhttp3.**
+-dontwarn okio.**

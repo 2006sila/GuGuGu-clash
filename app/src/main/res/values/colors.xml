@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 主色取自 ClashMetaForAndroid 的设计系统：浅色深藏蓝 / 深色亮蓝 -->
+    <color name="clash_light">#1E4376</color>
+    <color name="clash_dark">#1976D2</color>
+
+    <color name="md_primary">@color/clash_light</color>
+    <color name="md_on_primary">#FFFFFF</color>
+    <color name="md_primary_container">#D6E3FF</color>
+    <color name="md_on_primary_container">#001B3D</color>
+    <color name="md_secondary">#00696E</color>
+    <color name="md_on_secondary">#FFFFFF</color>
+    <color name="md_secondary_container">#6FF6FF</color>
+    <color name="md_on_secondary_container">#002022</color>
+
+    <color name="md_background">#FAFAFA</color>
+    <color name="md_on_background">#1A1C1E</color>
+    <color name="md_surface">#FFFFFF</color>
+    <color name="md_on_surface">#1A1C1E</color>
+    <color name="md_surface_variant">#F1F3F7</color>
+    <color name="md_on_surface_variant">#44474E</color>
+    <color name="md_outline">#C4C6CF</color>
+    <color name="md_outline_variant">#E2E2E9</color>
+
+    <color name="md_error">#B00020</color>
+    <color name="md_on_error">#FFFFFF</color>
+
+    <!-- 运行状态语义色：沿袭 CMFA 的 started / stopped 双色思路 -->
+    <color name="state_running">#2E7D32</color>
+    <color name="state_running_container">#C8E6C9</color>
+    <color name="state_running_on_container">#0B3D0F</color>
+    <color name="state_stopped">#5F6368</color>
+    <color name="state_stopped_container">#E8EAED</color>
+    <color name="state_stopped_on_container">#202124</color>
+    <color name="state_warn">#B26A00</color>
+    <color name="state_warn_container">#FFE0B2</color>
+    <color name="state_warn_on_container">#3D2400</color>
+    <!-- 节点卡片：默认浅底描边，选中用品牌深蓝（对齐 CMFA 代理页） -->
+    <color name="node_card_bg">#FFFFFFFF</color>
+    <color name="node_card_stroke">#22000000</color>
+    <color name="delay_fast">#FF2E7D32</color>
+    <color name="delay_mid">#FFEF6C00</color>
+    <color name="delay_slow">#FFC62828</color>
+    <color name="delay_unknown">#FF9E9E9E</color>
+    <!-- 自适应图标底色（前景满幅，实际很少露出，但不能缺） -->
+    <color name="ic_launcher_background">#FFF6F1EC</color>
+</resources>
