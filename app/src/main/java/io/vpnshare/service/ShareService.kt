@@ -294,7 +294,12 @@ class ShareService : Service() {
                         ShareState.tcpOk = false
                         ShareState.udpOk = false
                         ShareState.dnsOk = false
+                        // 进入降级态而不是继续假装 RUNNING：
+                        // 规则其实已经摘掉了，UI 必须如实反映，否则用户看到「运行中」而电脑是直连。
+                        ShareState.phase = ShareState.Phase.DEGRADED
                         ShareState.log("已取消热点接管：电脑恢复直连（不影响上网）。手机自身代理仍可用。")
+                        ShareState.log("进入降级态，每 60 秒自动重试；出口恢复后会自动重新接管，无需手动关开")
+                        scheduleRecovery()
                     }
                 }
             }
@@ -311,20 +316,26 @@ class ShareService : Service() {
             // 共享给电脑的流量会全部直连（用户看到的就是「开着但没走代理」）。
             // 这里兜一次：测速并切到最快节点。用户之后可以随时在节点页自己换。
             work.execute {
-                runCatching {
                     val g = io.vpnshare.core.CoreApi.mainGroupName()
                     if (g == null) {
                         ShareState.log("未找到总控策略组，跳过自动优选")
-                    } else if (io.vpnshare.core.CoreApi.isRealNodeSelected(g)) {
-                        ShareState.log("总控组「" + g + "」已选中真实节点，跳过自动优选")
                     } else {
-                        ShareState.log("总控组「" + g + "」当前是直连，正在自动优选最快节点…")
-                        val best = io.vpnshare.core.CoreApi.selectFastest(g)
-                        if (best != null) ShareState.log("已自动切换到「" + best + "」")
-                        else ShareState.log("WARN 自动优选失败：该组没有可用节点")
+                        // 判据要点：不能只判断「选中的是不是真实节点」，还要判断它**还活着没**。
+                        // 只看类型的话，一个已失效的节点会让这里判定「无需优选」，
+                        // 共享出去的流量就全部挂死在那个节点上（电脑表现为走代理的站点全超时）。
+                        val r = io.vpnshare.core.CoreApi.ensureAliveNode(g)
+                    when {
+                        r == null ->
+                            ShareState.log("WARN 总控组「" + g + "」不可用，共享流量会走不通")
+                        !r.measured ->
+                            ShareState.log("总控组「" + g + "」节点测速未取到有效数据，保持当前节点「" + r.node + "」不动")
+                        r.switched ->
+                            ShareState.log("总控组「" + g + "」原节点已失效，自动切换到「" + r.node + "」（可用 " + r.available + " 个）")
+                        else ->
+                            ShareState.log("总控组「" + g + "」当前节点「" + r.node + "」存活（可用 " + r.available + " 个），未改动")
                     }
                 }
-            }
+            }   // 关闭 work.execute（原 runCatching 已随本次重写移除）
         } catch (e: Exception) {
             fail(e.message ?: e.toString())
         } finally {
@@ -382,8 +393,14 @@ class ShareService : Service() {
             val det = TetherManager.detectIface(p)
             if (det != lastIface) {
                 ShareState.log("共享接口变化：" + lastIface + " -> " + (det ?: "无"))
-                val r = TetherManager.apply(ctx, p)
-                r.out.lines().filter { it.isNotBlank() }.forEach { ShareState.log(it) }
+                if (ShareState.phase == ShareState.Phase.DEGRADED) {
+                    // 降级态下不能在这里补规则：出口本来就不通，装上只会让电脑断网。
+                    // 自愈重试（scheduleRecovery）通过后会把规则装回去。
+                    ShareState.log("当前为降级态（出口不通），暂不装规则；自愈通过后会自动接管")
+                } else {
+                    val r = TetherManager.apply(ctx, p)
+                    r.out.lines().filter { it.isNotBlank() }.forEach { ShareState.log(it) }
+                }
                 lastIface = det ?: ""
                 ShareState.iface = det ?: ""
             }
@@ -513,6 +530,62 @@ class ShareService : Service() {
             return
         }
         ShareState.log(if (ProfileRunner.hotReload()) "OK  已热重载新配置（" + prep.nodeCount + " 节点）" else "ERR 热重载失败，重启服务生效")
+    }
+
+    /**
+     * 降级自愈。
+     *
+     * 背景：出口探测失败时会摘掉热点规则让电脑回到直连。但早期**摘完就不管了** ——
+     * 看门狗只在共享接口变化时才重装规则，于是「开机瞬间节点抖一下」会让共享永久停摆，
+     * 而 UI 还显示运行中。用户只能自己发现并手动关开一次。
+     *
+     * 现在：降级态下每 60 秒重试一次，顺序是「先修节点、再探出口、然后装回规则」。
+     * 死节点是降级最常见的原因，所以先跑一次 ensureAliveNode。
+     */
+    private fun scheduleRecovery() {
+        main.postDelayed(object : Runnable {
+            override fun run() {
+                if (ShareState.phase != ShareState.Phase.DEGRADED) return
+                work.execute {
+                    if (ShareState.phase != ShareState.Phase.DEGRADED) return@execute
+                    // 1) 先看总控组的节点还活着没
+                    runCatching {
+                        val g = io.vpnshare.core.CoreApi.mainGroupName()
+                        val r = if (g != null) io.vpnshare.core.CoreApi.ensureAliveNode(g) else null
+                        if (r != null && r.switched) {
+                            ShareState.log("降级重试：原节点已失效，已切到「" + r.node + "」（可用 " + r.available + " 个）")
+                        } else if (r != null && !r.measured) {
+                            ShareState.log("降级重试：节点测速未取到数据，保持当前节点不动")
+                        }
+                    }
+                    // 2) 再探出口
+                    val port = if (Prefs.load(applicationContext).proxyPhoneTraffic) 0 else 7890
+                    var code = -1
+                    for (attempt in 1..2) {
+                        code = io.vpnshare.core.CoreApi.probeEgress(8, port)
+                        if (code == 204) break
+                        if (attempt < 2) Thread.sleep(2000)
+                    }
+                    // 3) 通了就把规则装回去
+                    if (code == 204) {
+                        ShareState.log("降级重试：出口已恢复（204），正在重新接管热点…")
+                        val p = Prefs.load(applicationContext)
+                        applyRulesAndVerify(p)
+                        if (ShareState.tcpOk && ShareState.udpOk && ShareState.dnsOk) {
+                            ShareState.phase = ShareState.Phase.RUNNING
+                            ShareState.log("OK 已恢复共享：电脑重新走代理")
+                            runCatching { notifyState("咕咕咕clash 已恢复共享") }
+                        } else {
+                            ShareState.log("WARN 规则未能装回（热点可能未开），60 秒后再试")
+                            main.postDelayed(this, 60_000)
+                        }
+                    } else {
+                        ShareState.log("降级重试：出口仍不通（" + code + "），60 秒后再试")
+                        main.postDelayed(this, 60_000)
+                    }
+                }
+            }
+        }, 60_000)
     }
 
     private fun scheduleWatchdog() {

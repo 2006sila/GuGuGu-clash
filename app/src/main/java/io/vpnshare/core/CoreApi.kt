@@ -178,6 +178,58 @@ object CoreApi {
         return node.type !in PSEUDO_TYPES
     }
 
+    /** 总控组当前选中的名字（可能是 DIRECT / REJECT / 空 / 组名） */
+    fun selectedNow(group: String): String =
+        groups().firstOrNull { it.name == group }?.now ?: ""
+
+    /**
+     * 活性检查结果。
+     * @param node      现在实际生效的节点名（可能为空）
+     * @param switched  是否发生了切换
+     * @param measured  测速是否拿到了有效数据。false 表示测速本身失败，
+     *                  此时**不做任何判断** —— 把好节点误换掉比不换更糟
+     * @param available 测速中可用的真实节点数
+     */
+    data class AliveResult(val node: String, val switched: Boolean, val measured: Boolean, val available: Int)
+
+    /**
+     * 确保总控组指向一个**【活着】的真实节点**。
+     *
+     * 为什么需要：isRealNodeSelected 只看「选中的是不是真实节点类型」，不看它通不通。
+     * 机场节点随时会挂，而总控组会一直指向那个已失效的节点 —— 于是被判定成
+     * 「无需优选」，共享出去的流量全部挂在一个死节点上。
+     * 实测过一次：电脑走代理的站点全部超时、出口 IP 取不到，而同一组里另外三十多个
+     * 节点延迟都在 100ms 上下。
+     *
+     * 只做一次组测速：结果同时用于「判断当前节点活没活」和「挑最快的替代」。
+     *
+     * 安全性：组测速偶发会返回错误对象（实测遇到过），此时解析出来只有 "message" 一个键、
+     * 没有任何正延迟。这种情况按「测速无效」处理并原样返回当前节点 ——
+     * 宁可不换，也不能因为一次失败的测速把正在用的好节点换掉。
+     */
+    fun ensureAliveNode(group: String): AliveResult? {
+        val g = groups().firstOrNull { it.name == group } ?: return null
+        val real = g.nodes.filterNot { it.type in PSEUDO_TYPES }.map { it.name }.toSet()
+        if (real.isEmpty()) return null
+
+        val now = g.now
+        val map = groupDelayMap(group, "https://www.gstatic.com/generate_204")
+        // 只在真实节点里统计，DIRECT 那种 0ms 的本地直出不能算「可用节点」
+        val alive = map.filter { it.value > 0 && real.contains(it.key) }
+        if (alive.isEmpty()) {
+            // 测速没拿到任何有效数据 —— 不判断、不切换
+            return AliveResult(now, switched = false, measured = false, available = 0)
+        }
+        // 当前节点既是真实节点、又在测速里活着 → 保留（尊重用户的手动选择）
+        if (real.contains(now) && alive.containsKey(now)) {
+            return AliveResult(now, switched = false, measured = true, available = alive.size)
+        }
+        val best = alive.minByOrNull { it.value }?.key
+            ?: return AliveResult(now, switched = false, measured = true, available = 0)
+        val ok = select(group, best)
+        return AliveResult(if (ok) best else now, switched = ok, measured = true, available = alive.size)
+    }
+
     data class Totals(val up: Long, val down: Long)
 
     /**
