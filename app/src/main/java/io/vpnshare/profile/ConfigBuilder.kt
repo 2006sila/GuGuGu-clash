@@ -483,8 +483,9 @@ object ConfigBuilder {
         val o = opts.over
         val L = subscriptionYaml.lines().toMutableList()
 
-        // 1) 先摘掉会被我们覆写的顶层标量与 listeners 块
+        // 1) 先摘掉会被我们覆写的顶层标量（只含标量键）
         for (k in REPLACED_TOP_KEYS) removeTopScalarInPlace(L, k)
+        // 块结构单独走块删除：标量删除只吃掉块头，会把子行留成孤儿
         removeTopBlockInPlace(L, "listeners")
 
         // 2) 受控块：有就替换，没有就补在末尾（YAML 顶层键顺序不敏感）
@@ -520,10 +521,17 @@ object ConfigBuilder {
         return L.joinToString("\n")
     }
 
-    /** 这些顶层键一律由我们接管，订阅里原有的先删掉再按需补回 */
+    /**
+     * 这些顶层**标量**键一律由我们接管，订阅里原有的先删掉再按需补回。
+     *
+     * 只放标量键。块结构（listeners / external-controller-cors）绝不能放进来 ——
+     * removeTopScalarInPlace 只删「块头」那一行，缩进的子行会全部残留成顶层孤儿，
+     * YAML 直接解析失败。块键必须走 removeTopBlockInPlace / replaceBlockInPlace。
+     * 这个坑造成过「订阅带 listeners 就起不来」，所以在此写死约束。
+     */
     private val REPLACED_TOP_KEYS = listOf(
-        "external-controller", "external-controller-tls", "external-ui", "external-controller-cors",
-        "interface-name", "routing-mark", "listeners",
+        "external-controller", "external-controller-tls", "external-ui",
+        "interface-name", "routing-mark",
         "mixed-port", "redir-port", "tproxy-port", "port", "socks-port",
         "allow-lan", "bind-address", "tcp-concurrent", "unified-delay",
         "find-process-mode", "geodata-mode", "mode", "log-level", "secret"
@@ -546,7 +554,12 @@ object ConfigBuilder {
         // mihomo 的键名：HTTP 代理是 port。0 = 不监听。
         "port" to o.httpPort.toString(),
         "socks-port" to o.socksPort.toString()
-    )
+    ).apply {
+        // secret 特殊：它同时出现在 REPLACED_TOP_KEYS 里（保证订阅自带的被清掉），
+        // 所以只有用户真的设了密码才写回；留空时保持「没有 secret」的状态。
+        // 早期漏了这一段，导致采纳模式下用户在「外部控制」设的密码被静默忽略。
+        if (o.secret.isNotBlank()) put("secret", o.secret)
+    }
 
     private fun corsBlockInPlace(o: OverrideOptions): String =
         "external-controller-cors:\n" +

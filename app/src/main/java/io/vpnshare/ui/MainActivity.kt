@@ -52,11 +52,47 @@ class MainActivity : AppCompatActivity() {
     private val main = Handler(Looper.getMainLooper())
     private var suppress = false
 
+    // ---- 后台统计缓存 ----
+    //
+    // 主界面 ticker 每 1 秒调一次 render()，而下面这三件事都很贵，绝不能放在里面：
+    //   · PermissionCheck.missingCritical → RootShell.isRooted() **起一个 su 子进程并阻塞等待**
+    //   · 同上还会 getInstalledPackages(0) 全量枚举应用列表
+    //   · ProfileStore.providerText → 档案加密时会跑 **PBKDF2 12 万次迭代**（100-300ms 纯 CPU）
+    // 放在 render() 里等于每秒在主线程烧掉几百毫秒 —— 掉帧、耗电，而且开着配置加密时尤其明显。
+    // 现在改成：后台线程每 15 秒算一次，主线程只读缓存。
+    @Volatile private var cachedMissingPerms = -1
+    @Volatile private var cachedNodeCount = -1
+    @Volatile private var statsBusy = false
+    private var tickCount = 0
+
     private val ticker = object : Runnable {
         override fun run() {
             render()
+            if (++tickCount % 15 == 0) refreshHeavyStats()
             main.postDelayed(this, 1000)
         }
+    }
+
+    /** 在后台线程刷新重活结果；主线程只读缓存，不阻塞 */
+    private fun refreshHeavyStats() {
+        if (statsBusy) return
+        statsBusy = true
+        Thread {
+            val perms = runCatching {
+                io.vpnshare.util.PermissionCheck.missingCritical(this)
+            }.getOrDefault(-1)
+            val nodes = runCatching {
+                val store = ProfileStore(this)
+                val prof = store.current(Prefs.load(this).currentProfileId)
+                prof?.let { store.providerText(it)?.let { t -> io.vpnshare.profile.SubFormat.countNodes(t) } } ?: -1
+            }.getOrDefault(-1)
+            main.post {
+                cachedMissingPerms = perms
+                cachedNodeCount = nodes
+                statsBusy = false
+                render()
+            }
+        }.start()
     }
 
 
@@ -203,6 +239,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        // 回到主界面就把重活刷一次（切配置、改权限后立刻反映）
+        refreshHeavyStats()
         main.removeCallbacks(ticker)
         main.post(ticker)
     }
@@ -357,11 +395,11 @@ class MainActivity : AppCompatActivity() {
             null -> getString(R.string.value_offload_absent)
         })
 
-        // 入口尾部文字
-        val store = ProfileStore(this)
-        val profile = store.current(p.currentProfileId)
-        val nodes = profile?.let { p2 -> store.providerText(p2)?.let { io.vpnshare.profile.SubFormat.countNodes(it) } }
-        trailViews["nodes"]?.text = if (nodes != null) nodes.toString() + " 个" else ""
+        // 入口尾部文字。节点数走缓存 —— providerText 在档案加密时会跑 PBKDF2，
+        // 每秒调一次等于每秒烧一次 CPU。
+        val profile = ProfileStore(this).current(p.currentProfileId)
+        val nodes = cachedNodeCount
+        trailViews["nodes"]?.text = if (nodes >= 0) nodes.toString() + " 个" else ""
 
         // 连接入口显示实时速率：这是用户最常想知道的一件事，而且 ShareState 里现成有
         trailViews["connections"]?.text =
@@ -387,10 +425,11 @@ class MainActivity : AppCompatActivity() {
         // 网络入口：这是最常被切来切去的开关，状态必须一眼可见
         trailViews["network"]?.text = if (p.proxyPhoneTraffic) "手机也走代理" else ""
 
-        // 诊断入口：权限缺失会造成「功能静默失效」，直接在主界面标红，别等用户自己翻
-        val missPerms = io.vpnshare.util.PermissionCheck.missingCritical(this)
+        // 诊断入口：权限缺失会造成「功能静默失效」，直接在主界面标红，别等用户自己翻。
+        // 走缓存 —— 实时查会起 su 子进程 + 全量枚举应用列表。
+        val missPerms = cachedMissingPerms
         trailViews["diagnose"]?.let { tv ->
-            tv.text = if (missPerms == 0) "" else missPerms.toString() + " 项待处理"
+            tv.text = if (missPerms <= 0) "" else missPerms.toString() + " 项待处理"
             tv.setTextColor(0xFFC62828.toInt())
         }
     }

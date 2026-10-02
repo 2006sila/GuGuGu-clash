@@ -575,7 +575,9 @@ class ShareService : Service() {
      */
     private fun startTrafficPolling() {
         stopTrafficPolling()
-        stopNetworkWatcher()
+        // 注意：这里不能顺手 stopNetworkWatcher()。它是「停止流程」的一部分，
+        // 放在「启动流程」里会关掉刚注册好的网络联动监听（早期批量改动时误加过一行）。
+        // 目前靠 startAll 里 NetworkWatcher.start 的调用顺序侥幸无害，但那是脆弱的顺序依赖。
         lastUp = -1L; lastDown = -1L; lastAt = 0L
         val r = object : Runnable {
             override fun run() {

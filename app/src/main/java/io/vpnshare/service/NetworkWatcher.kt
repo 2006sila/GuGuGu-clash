@@ -22,6 +22,18 @@ object NetworkWatcher {
     @Volatile private var cb: ConnectivityManager.NetworkCallback? = null
     @Volatile private var lastApplied: String? = null
 
+    /**
+     * 专用后台线程。
+     *
+     * ConnectivityManager 的回调（onAvailable / onCapabilitiesChanged / onLost）
+     * 不传 Handler 时落在**主线程**，而 apply 里串了三件重活：
+     *   prepareConfig ≈ 2 秒、hotReload、selectFastest（整组测速，超时上限 5 秒）
+     * 直接跑必然 ANR（主线程冻结 8 秒以上）。所以全部丢到这个线程执行。
+     */
+    private val worker = java.util.concurrent.Executors.newSingleThreadExecutor { r ->
+        Thread(r, "vpnshare-netwatch")
+    }
+
     /** 当前网络的标识：wifi:<网关> / wifi / mobile / null */
     fun currentIdentity(ctx: Context): String? = runCatching {
         val cm = ctx.getSystemService(ConnectivityManager::class.java) ?: return null
@@ -82,8 +94,13 @@ object NetworkWatcher {
         lastApplied = null
     }
 
-    /** 读当前网络 → 匹配规则 → 需要的话切配置并热重载 */
+    /** 投递到后台线程执行（回调在主线程，不能在这里直接干活） */
     private fun apply(ctx: Context) {
+        worker.execute { applyNow(ctx) }
+    }
+
+    /** 读当前网络 → 匹配规则 → 需要的话切配置并热重载。只允许在 worker 线程上跑。 */
+    private fun applyNow(ctx: Context) {
         val p = Prefs.load(ctx)
         val rules = NetworkRule.parse(p.networkRules)
         if (rules.isEmpty()) return

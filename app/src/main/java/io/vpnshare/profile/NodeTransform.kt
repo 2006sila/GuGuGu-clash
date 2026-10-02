@@ -68,6 +68,39 @@ object NodeTransform {
     }
 
     /**
+     * 只替换 name 字段的值。
+     *
+     * **绝不能用 `text.replace(old, new)`** —— 那是整条条目的全文替换，
+     * 会把 server / password / uuid 里恰好同名的子串一起改掉。
+     * 典型翻车场景：节点名就是 server 域名（不少机场这么命名），改名后 server
+     * 也跟着变成节点名，该节点从此永远连不上 —— 而且不报错、mihomo -t 自检也能过，
+     * 只表现为「这个节点一直超时」，极难排查。
+     *
+     * 三种写法都覆盖（与 [nameOf] 保持一致），并保留原有引号风格。
+     * 定位不到 name 字段时原样返回：宁可名字没改成，也不能改坏别的字段。
+     */
+    private fun renameInEntry(text: String, old: String, new: String): String {
+        val e = Regex.escape(old)
+        val variants = listOf(
+            Regex("name:(\\s*)'(" + e + ")'"),
+            Regex("name:(\\s*)\"(" + e + ")\""),
+            Regex("name:(\\s*)(" + e + ")")
+        )
+        for (re in variants) {
+            val m = re.find(text) ?: continue
+            val spaces = m.groupValues[1]
+            val quote = when {
+                m.value.contains("'") -> "'"
+                m.value.contains("\"") -> "\""
+                else -> ""
+            }
+            return text.substring(0, m.range.first) + "name:" + spaces + quote + new + quote +
+                text.substring(m.range.last + 1)
+        }
+        return text
+    }
+
+    /**
      * 变换一个 proxies 块。返回新块、旧名→新名映射、被丢弃的名字集合。
      * 块里每个条目以 `- ` 起头，后续缩进行属于同一条目。
      */
@@ -108,7 +141,7 @@ object NodeTransform {
             used += nn
             if (nn != name) rename[name] = nn
 
-            val newText = if (nn == name) text else text.replace(name, nn)
+            val newText = if (nn == name) text else renameInEntry(text, name, nn)
             kept += newText.lines()
         }
 

@@ -128,4 +128,50 @@ proxies:
         assertEquals(1, r.renames.size)
         assertEquals("a" to "b", r.renames[0])
     }
+
+    // ---------------- 改名不得误伤其它字段（回归） ----------------
+
+    @Test
+    fun renameDoesNotTouchServerField() {
+        // 真实翻车场景：节点名就是 server 域名（不少机场这么命名）。
+        // 早期用 text.replace(name, nn) 做整条全文替换 → server 也被改掉，
+        // 节点从此永远连不上，且不报错、mihomo -t 自检也能过，极难排查。
+        val cfg = """
+proxies:
+    - { name: 'hk1.example.com', type: ss, server: hk1.example.com, port: 443 }
+proxy-groups:
+    - { name: '手动切换', type: select, proxies: ['hk1.example.com'] }
+""".trimIndent()
+        val r = NodeTransform.applyToConfig(cfg, rules(ren = "hk1.example.com => 香港 01"))
+        assertTrue("name 应被改掉", r.text.contains("name: '香港 01'"))
+        assertTrue("server 必须保持原样", r.text.contains("server: hk1.example.com"))
+        assertTrue("组引用应同步", r.text.contains("'香港 01'"))
+    }
+
+    @Test
+    fun renameDoesNotTouchPortOrPassword() {
+        // 改名规则命中数字时，不能把 port / password 里的同名字串一起改掉
+        val cfg = """
+proxies:
+    - { name: '01', type: ss, server: a.com, port: 16401, password: 'pw-01-x' }
+""".trimIndent()
+        val r = NodeTransform.applyToProxiesBlock(cfg, rules(ren = "01 => X"))
+        assertTrue("name 应改成 X", r.text.contains("name: 'X'"))
+        assertTrue("port 不能被改", r.text.contains("port: 16401"))
+        assertTrue("password 不能被改", r.text.contains("password: 'pw-01-x'"))
+    }
+
+    @Test
+    fun renameHandlesUnquotedNameForm() {
+        // 多行块里的 name 常常不带引号
+        val cfg = """
+proxies:
+  - name: 香港 01
+    type: ss
+    server: hk1.example.com
+""".trimIndent()
+        val r = NodeTransform.applyToProxiesBlock(cfg, rules(ren = "香港 => HK"))
+        assertTrue("无引号形态也要能改名", r.text.contains("name: HK 01"))
+        assertTrue("server 不受影响", r.text.contains("server: hk1.example.com"))
+    }
 }
