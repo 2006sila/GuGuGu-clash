@@ -25,8 +25,8 @@ android {
         applicationId = "io.vpnshare"
         minSdk = 24
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.0.1"
     }
 
     // 用 flavor 而不是 splits：ABI splits 只拆 .so，不拆 assets，
