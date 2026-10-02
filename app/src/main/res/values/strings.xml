@@ -8,11 +8,13 @@
     <string name="action_state_error">出错</string>
     <string name="action_state_busy">处理中…</string>
     <string name="action_sub_stopped">打开右侧开关开始共享</string>
-    <string name="label_rules">接管规则</string>
-    <string name="label_offload">共享硬件加速</string>
-    <string name="value_offload_absent">无此开关</string>
-    <string name="value_offload_on">已关闭</string>
-    <string name="value_offload_off">未关闭</string>
+    <string name="label_rules">接管</string>
+    <string name="label_offload">硬件加速</string>
+    <string name="label_traffic_total">已转发</string>
+    <string name="label_traffic_proxied">其中梯子（消耗机场配额）</string>
+    <string name="value_offload_absent">不支持</string>
+    <string name="value_offload_on">已规避</string>
+    <string name="value_offload_off">未规避</string>
     <string name="value_off">关</string>
     <string name="action_copy">复制</string>
 

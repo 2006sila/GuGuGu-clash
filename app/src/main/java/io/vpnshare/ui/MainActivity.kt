@@ -44,6 +44,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var ivActionIcon: ImageView
     private lateinit var tvActionTitle: TextView
     private lateinit var tvActionSub: TextView
+    private lateinit var tvTrafficTotal: TextView
+    private lateinit var tvTrafficProxied: TextView
     private lateinit var tvPhase: TextView
 
     private val statViews = LinkedHashMap<String, View>()
@@ -109,6 +111,8 @@ class MainActivity : AppCompatActivity() {
         ivActionIcon = findViewById(R.id.ivActionIcon)
         tvActionTitle = findViewById(R.id.tvActionTitle)
         tvActionSub = findViewById(R.id.tvActionSub)
+        tvTrafficTotal = findViewById(R.id.tvTrafficTotal)
+        tvTrafficProxied = findViewById(R.id.tvTrafficProxied)
         tvPhase = findViewById(R.id.tvPhase)
 
         // 主题：单击循环三态。setDefaultNightMode 会让 Activity 自己重建，
@@ -379,7 +383,10 @@ class MainActivity : AppCompatActivity() {
                 }
             )
         )
-        tvActionSub.text = actionSubtitle(running)
+        val sub = actionSubtitle(running)
+        tvActionSub.text = sub
+        // 空串时收起，避免留下一条空白把卡片撑高
+        tvActionSub.visibility = if (sub.isBlank()) android.view.View.GONE else android.view.View.VISIBLE
 
         val sup = suppress
         suppress = true
@@ -394,6 +401,15 @@ class MainActivity : AppCompatActivity() {
             false -> getString(R.string.value_offload_off)
             null -> getString(R.string.value_offload_absent)
         })
+        // 流量方块。未运行时显示 —，避免让人以为那些数字是"这次"的
+        val fmt = { v: Long -> io.vpnshare.util.Format.bytes(v) }
+        if (running) {
+            tvTrafficTotal.text = fmt(ShareState.totalBytes)
+            tvTrafficProxied.text = fmt(ShareState.proxiedBytes)
+        } else {
+            tvTrafficTotal.text = "—"
+            tvTrafficProxied.text = "—"
+        }
 
         // 入口尾部文字。节点数走缓存 —— providerText 在档案加密时会跑 PBKDF2，
         // 每秒调一次等于每秒烧一次 CPU。
@@ -442,6 +458,14 @@ class MainActivity : AppCompatActivity() {
         else -> getString(R.string.action_state_busy)
     }
 
+    /**
+     * 主开关卡片下面那行小字。
+     *
+     * 刻意**不再**放「热点 wlan2」「内核 v1.19.32」和流量 ——
+     *  · 热点接口与内核版本属于排障信息，全都完整列在「诊断 → 运行属性」里；
+     *  · 流量单独给了方块（见 view_traffic_card）
+     * 正常运行时这里返回空串，由调用方隐藏，卡片只留标题和开关，干净。
+     */
     private fun actionSubtitle(running: Boolean): String {
         if (ShareState.phase == ShareState.Phase.ERROR && ShareState.detail.isNotBlank()) return ShareState.detail
         if (!running) {
@@ -449,18 +473,7 @@ class MainActivity : AppCompatActivity() {
             return if (missing.isNotEmpty()) "缺 " + missing.joinToString("、")
             else getString(R.string.action_sub_stopped)
         }
-        // 这一行的可用宽度只有约 546px（卡片文字列），本来就占两行；
-        // 加上「（梯子 …）」不改变行数，所以内核版本保留在这里。
-        val parts = mutableListOf<String>()
-        if (ShareState.iface.isNotBlank()) parts += "热点 " + ShareState.iface
-        if (ShareState.coreVersion.isNotBlank()) parts += "内核 " + ShareState.coreVersion
-        // 累计转发量（内核全局，含直连）+ 其中真正走节点、消耗机场配额的部分。
-        // 括号里那个数才是「梯子用了多少」，两者通常差得很远。
-        if (ShareState.hasTraffic) {
-            parts += "已转发 " + io.vpnshare.util.Format.bytes(ShareState.totalBytes) +
-                "（梯子 " + io.vpnshare.util.Format.bytes(ShareState.proxiedBytes) + "）"
-        }
-        return if (parts.isEmpty()) getString(R.string.action_state_running) else parts.joinToString("   ")
+        return ""
     }
 
     private fun setStat(key: String, label: String, value: String) {

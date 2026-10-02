@@ -86,7 +86,15 @@
                     android:layout_height="wrap_content" />
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- 指标：只留状态卡里没有的两项（接管规则、硬件加速）-->
+            <!-- 流量：单独成块，用户最关心的一项 -->
+            <include
+                android:id="@+id/cardTraffic"
+                layout="@layout/view_traffic_card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/card_gap" />
+
+            <!-- 指标：接管与硬件加速并排 -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
