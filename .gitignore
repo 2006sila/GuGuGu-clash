@@ -35,6 +35,9 @@ _porttest.sh
 # 因为 GPL-3.0 要求随二进制分发提供对应内容，且保证 clone 后可离线构建。
 # 它们的校验基准在 scripts/asset-checksums.txt。
 
+# ---- 工具缓存 ----
+.local/
+
 # ---- 系统 ----
 Thumbs.db
 .DS_Store
