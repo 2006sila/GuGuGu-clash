@@ -62,10 +62,18 @@ object SubImporter {
     }
 
     /** 本地文件 / 剪贴板导入 */
+    /** 单份订阅内容的字符上限 */
+    private const val MAX_BODY_CHARS = 3 * 1024 * 1024
+
     fun importText(ctx: Context, url: String, text: String, userInfo: String = "", name: String = ""): Result =
         commit(ctx, url.ifBlank { "local://" + System.currentTimeMillis() }, text, userInfo, name)
 
     private fun commit(ctx: Context, url: String, body: String, userInfo: String, name: String, intervalHours: Int = 0): Result {
+        // 体积上限：扫码/深链/剪贴板都可能塞进任意内容。正常机场配置 1-2 MB 顶天，
+        // 3 MB 已经是非常离谱的余量；再大就拒掉，别把几百 MB 的东西整段落盘。
+        if (body.length > MAX_BODY_CHARS) {
+            return Result(false, message = "内容过大（" + (body.length / 1048576) + " MB），已拒绝导入")
+        }
         val det = SubFormat.detect(body)
         val store = ProfileStore(ctx)
         val id = store.idFor(url)

@@ -39,12 +39,7 @@ object CoreManager {
     const val RUN_AS_UID = 2000
     private var proc: Process? = null
     private val ring = ArrayDeque<String>()
-    private var listener: ((String) -> Unit)? = null
     private var logFile: File? = null
-
-    fun setLogListener(l: ((String) -> Unit)?) {
-        synchronized(lock) { listener = l }
-    }
 
     /** 内核 stdout/stderr 同时落盘，便于 adb 取证 */
     fun setLogFile(f: File?) {
@@ -103,6 +98,8 @@ object CoreManager {
             reader.use { r ->
                 while (true) {
                     val line = r.readLine() ?: break
+                    // 内核输出由这里负责写 logcat（带 core[OUT]/core[ERR] 前缀便于区分来源）；
+                    // 回调侧用 ShareState.logCore，它不再镜像 logcat，避免同一条写两遍。
                     android.util.Log.i("VpnShare", "core[" + tag + "] " + line)
                     val text = if (tag == "ERR") "[stderr] " + line else line
                     synchronized(lock) {

@@ -168,7 +168,6 @@ class ShareService : Service() {
                 return
             }
 
-            CoreManager.setLogListener { line -> ShareState.log(line) }
             CoreManager.setLogFile(java.io.File(filesDir, "core.log"))
             // 内核一律以 root 运行。三种身份实测结论：
             //   root     → 网络 ✅ + 能建 redir/tproxy 监听 ✅  → 唯一可行的
@@ -193,7 +192,7 @@ class ShareService : Service() {
             if (coreAlreadyUp) {
                 ShareState.log("内核已在运行且端口齐全，直接复用（不重启、不断网）")
             } else if (!CoreManager.start(
-                    onLog = { line -> ShareState.log(line) },
+                    onLog = { line -> ShareState.logCore(line) },
                     runAsUid = null,
                     onExit = { code ->
                         if (ShareState.running) {
@@ -431,7 +430,6 @@ class ShareService : Service() {
             val r = TetherManager.cleanup(ctx, p)
             r.out.lines().filter { it.isNotBlank() }.forEach { ShareState.log(it) }
 
-            CoreManager.setLogListener(null)
             val killResult = CoreManager.stop()
             // pkill 的退出码不可靠，用脚本里的 pidof 复核结果判断
             val killed = killResult.out.contains("stopped=yes")
@@ -491,6 +489,13 @@ class ShareService : Service() {
     }
 
     /** 订阅自动更新：成功且自检通过才热重载，失败保留旧配置 */
+    /**
+     * 订阅自动更新的调度。
+     *
+     * 失败会重试：机场偶尔 502/超时很常见，早期失败就直接 return 等下一个整周期，
+     * 结果是「12 小时内机场抖一下，订阅一整天没更新」，而用户完全不知道。
+     * 现在失败后 30 分钟重试，连续失败 SUB_MAX_RETRY 次才退回正常周期。
+     */
     private fun scheduleSubUpdate() {
         // 间隔取值顺序：该配置自己的（机场下发或用户单设）→ 全局设置。
         val p = Prefs.load(applicationContext)
@@ -500,36 +505,52 @@ class ShareService : Service() {
             ShareState.log("订阅自动更新已关闭")
             return
         }
-        val delay = hours * 3600_000L
+        val normalDelay = hours * 3600_000L
         main.postDelayed(object : Runnable {
             override fun run() {
                 if (!ShareState.running) return
-                work.execute { runSubUpdate() }
-                main.postDelayed(this, delay)
+                work.execute {
+                    val ok = runSubUpdate()
+                    if (ok) {
+                        subFailStreak = 0
+                        main.postDelayed(this, normalDelay)
+                    } else if (subFailStreak < SUB_MAX_RETRY) {
+                        subFailStreak++
+                        ShareState.log("订阅更新失败，30 分钟后重试（第 " + subFailStreak + "/" + SUB_MAX_RETRY + " 次）")
+                        main.postDelayed(this, SUB_RETRY_MS)
+                    } else {
+                        ShareState.log("订阅更新连续失败 " + SUB_MAX_RETRY + " 次，改为等下一个正常周期")
+                        subFailStreak = 0
+                        main.postDelayed(this, normalDelay)
+                    }
+                }
             }
-        }, delay)
+        }, normalDelay)
         ShareState.log("订阅自动更新已启用：每 " + hours + " 小时")
     }
 
-    fun runSubUpdate() {
+    /** @return 整条链路（下载 → 生成 → 自检 → 热重载）是否全部成功 */
+    fun runSubUpdate(): Boolean {
         val ctx = applicationContext
         val p = Prefs.load(ctx)
         val profile = ProfileStore(ctx).current(p.currentProfileId)
         if (profile == null) {
             ShareState.log("跳过订阅更新：尚未导入订阅")
-            return
+            return false
         }
         ShareState.log("开始更新订阅：" + profile.name)
         val r = SubImporter.update(ctx, profile, p.userAgent)
         ShareState.log((if (r.ok) "OK  " else "ERR ") + r.message)
-        if (!r.ok) return
+        if (!r.ok) return false
 
         val prep = ProfileRunner.prepareConfig(ctx, Prefs.load(ctx))
         if (!prep.ok) {
             ShareState.log("ERR 新配置未通过自检，保留旧配置：" + (prep.error ?: ""))
-            return
+            return false
         }
-        ShareState.log(if (ProfileRunner.hotReload()) "OK  已热重载新配置（" + prep.nodeCount + " 节点）" else "ERR 热重载失败，重启服务生效")
+        val reloaded = ProfileRunner.hotReload()
+        ShareState.log(if (reloaded) "OK  已热重载新配置（" + prep.nodeCount + " 节点）" else "ERR 热重载失败，重启服务生效")
+        return reloaded
     }
 
     /**
@@ -566,7 +587,14 @@ class ShareService : Service() {
                         if (code == 204) break
                         if (attempt < 2) Thread.sleep(2000)
                     }
-                    // 3) 通了就把规则装回去
+                    // 3) 通了就把规则装回去。
+                    // 装之前必须再确认服务仍在运行：用户可能在这 20 多秒的探测期间关掉了开关。
+                    // 单线程 work 队列保证了 stopAll 不会插在中间，但那样会在停止后白装一次
+                    // 再被立刻拆掉 —— 既浪费，也短暂地把电脑流量导向正在退出的内核。
+                    if (code == 204 && !ShareState.running) {
+                        ShareState.log("降级重试：探测期间服务已停止，放弃本次自愈")
+                        return@execute
+                    }
                     if (code == 204) {
                         ShareState.log("降级重试：出口已恢复（204），正在重新接管热点…")
                         val p = Prefs.load(applicationContext)
@@ -640,6 +668,9 @@ class ShareService : Service() {
     @Volatile private var lastUp = -1L
     @Volatile private var lastDown = -1L
     @Volatile private var lastAt = 0L
+
+    /** 订阅更新连续失败次数；成功后清零 */
+    private var subFailStreak = 0
 
     /** 梯子流量累加器状态。只在采样线程读写，不需要额外同步。 */
     private var proxiedState = io.vpnshare.service.ProxiedTraffic.EMPTY
@@ -734,6 +765,10 @@ class ShareService : Service() {
     }
 
     companion object {
+        /** 订阅更新失败后的重试间隔与最大次数 */
+        private const val SUB_RETRY_MS = 30 * 60_000L
+        private const val SUB_MAX_RETRY = 3
+
         @Volatile
         private var instance: ShareService? = null
 

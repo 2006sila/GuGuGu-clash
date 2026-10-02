@@ -125,12 +125,20 @@ object NetworkWatcher {
             } else {
                 ShareState.log("WARN 网络联动：热重载失败，重启服务生效")
             }
-            // 切策略组：等内核重载完再点，太快会点到旧进程
+            // 切策略组：等内核重载完再点，太快会点到旧进程。
+            // 这里必须用 ensureAliveNode 而不是旧的 selectFastest —— 后者无条件挑最快的，
+            // 会把用户手动选好的节点也换掉；前者只在当前节点**失效**时才动，
+            // 顺带保证切过去的是测速确认可用的节点（selectFastest 只看延迟数值，
+            // 一个刚挂但还没测出超时的节点也可能被选中）。
             if (hit.group.isNotBlank()) {
-                val best = io.vpnshare.core.CoreApi.selectFastest(hit.group)
+                val r = io.vpnshare.core.CoreApi.ensureAliveNode(hit.group)
                 ShareState.log(
-                    if (best != null) "OK  网络联动：组「" + hit.group + "」已切到 " + best
-                    else "WARN 网络联动：组「" + hit.group + "」没有可用节点"
+                    when {
+                        r == null -> "WARN 网络联动：组「" + hit.group + "」不可用"
+                        r.switched -> "OK  网络联动：原节点已失效，已切到「" + r.node + "」（可用 " + r.available + " 个）"
+                        !r.measured -> "网络联动：节点测速未取到数据，保持当前节点「" + r.node + "」不动"
+                        else -> "OK  网络联动：当前节点「" + r.node + "」存活"
+                    }
                 )
             }
         }.onFailure { ShareState.log("ERR 网络联动失败：" + it.message) }

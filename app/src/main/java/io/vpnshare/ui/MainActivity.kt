@@ -64,6 +64,9 @@ class MainActivity : AppCompatActivity() {
     // 现在改成：后台线程每 15 秒算一次，主线程只读缓存。
     @Volatile private var cachedMissingPerms = -1
     @Volatile private var cachedNodeCount = -1
+    /** 订阅入口的尾部文字。算它要 new ProfileStore（会读 index.txt）+ 解析 userinfo，
+     *  属于重活，同样放后台 15 秒刷一次。 */
+    @Volatile private var cachedSubTrail = ""
     @Volatile private var statsBusy = false
     private var tickCount = 0
 
@@ -88,9 +91,21 @@ class MainActivity : AppCompatActivity() {
                 val prof = store.current(Prefs.load(this).currentProfileId)
                 prof?.let { store.providerText(it)?.let { t -> io.vpnshare.profile.SubFormat.countNodes(t) } } ?: -1
             }.getOrDefault(-1)
+            // 订阅摘要同一次读取里算完，render() 就不必再碰 ProfileStore
+            val subTrail = runCatching {
+                val store = ProfileStore(this)
+                val prof = store.current(Prefs.load(this).currentProfileId)
+                val ui = prof?.userInfo?.let { io.vpnshare.profile.parseUserInfo(it) }
+                when {
+                    ui == null -> prof?.name ?: ""
+                    ui.hasQuota -> "剩余 " + io.vpnshare.util.Format.bytes(ui.remaining)
+                    else -> "已用 " + io.vpnshare.util.Format.bytes(ui.used)
+                }
+            }.getOrDefault("")
             main.post {
                 cachedMissingPerms = perms
                 cachedNodeCount = nodes
+                cachedSubTrail = subTrail
                 statsBusy = false
                 render()
             }
@@ -411,9 +426,10 @@ class MainActivity : AppCompatActivity() {
             tvTrafficProxied.text = "—"
         }
 
-        // 入口尾部文字。节点数走缓存 —— providerText 在档案加密时会跑 PBKDF2，
-        // 每秒调一次等于每秒烧一次 CPU。
-        val profile = ProfileStore(this).current(p.currentProfileId)
+        // 入口尾部文字全部走缓存。这两项以前是每秒实时算的：
+        //  · 节点数要读 providerText —— 档案加密时会跑 PBKDF2；
+        //  · 订阅摘要要 new ProfileStore → all() → 读 index.txt，等于每秒一次磁盘 I/O。
+        // 现在统一在 refreshHeavyStats 里 15 秒算一次，主线程只读字段。
         val nodes = cachedNodeCount
         trailViews["nodes"]?.text = if (nodes >= 0) nodes.toString() + " 个" else ""
 
@@ -421,13 +437,8 @@ class MainActivity : AppCompatActivity() {
         trailViews["connections"]?.text =
             if (running) "↓ " + io.vpnshare.util.Format.rate(ShareState.downRate) else ""
 
-        // 订阅入口：优先显示剩余流量（比名字有用），没配额才退回名字
-        val ui = profile?.userInfo?.let { io.vpnshare.profile.parseUserInfo(it) }
-        trailViews["subscription"]?.text = when {
-            ui == null -> profile?.name ?: ""
-            ui.hasQuota -> "剩余 " + io.vpnshare.util.Format.bytes(ui.remaining)
-            else -> "已用 " + io.vpnshare.util.Format.bytes(ui.used)
-        }
+        // 订阅入口：优先显示剩余流量（比名字有用），没配额才退回名字。走缓存。
+        trailViews["subscription"]?.text = cachedSubTrail
 
         // 分流入口：规则改动很频繁，摘要比静态副标题有用
         trailViews["split"]?.text = run {

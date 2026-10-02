@@ -16,6 +16,21 @@ class ClientsActivity : BaseListActivity() {
     private var blocked: Set<String> = emptySet()
     private var iface: String? = null
 
+    /** 防止上一轮还没回来就叠下一轮（ip neigh 走 su，慢的时候能到几百毫秒） */
+    @Volatile private var busy = false
+
+    /**
+     * 每 5 秒自动刷新。
+     * 设备上线/下线是随时发生的（电脑休眠、手机离得远），只在 onResume 刷一次
+     * 会让用户对着过期列表手动点「刷新」。5 秒足够及时，也不至于把 su 调得太勤。
+     */
+    private val ticker = object : Runnable {
+        override fun run() {
+            refresh()
+            main.postDelayed(this, 5000)
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         title = "已连设备"
         super.onCreate(savedInstanceState)
@@ -23,18 +38,27 @@ class ClientsActivity : BaseListActivity() {
 
     override fun onResume() {
         super.onResume()
-        refresh()
+        main.removeCallbacks(ticker)
+        main.post(ticker)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        main.removeCallbacks(ticker)
     }
 
     private fun refresh() {
+        if (busy) return
+        busy = true
         val ifc = ShareState.iface.ifBlank { null }
         Thread {
-            val clients = ClientMonitor.list(ifc)
-            val blk = ClientMonitor.blocked()
+            val clients = runCatching { ClientMonitor.list(ifc) }.getOrDefault(emptyList())
+            val blk = runCatching { ClientMonitor.blocked() }.getOrDefault(emptySet())
             main.post {
                 current = clients
                 blocked = blk
                 iface = ifc
+                busy = false
                 render()
             }
         }.start()

@@ -168,16 +168,6 @@ object CoreApi {
         "Selector", "URLTest", "Fallback", "LoadBalance", "Relay"
     )
 
-    /** 某个组当前选中的是不是「真实节点」（而不是 DIRECT/REJECT/其它组） */
-    fun isRealNodeSelected(group: String): Boolean {
-        val g = groups().firstOrNull { it.name == group } ?: return false
-        val now = g.now
-        if (now.isBlank()) return false
-        if (now.equals("DIRECT", true) || now.equals("REJECT", true)) return false
-        val node = g.nodes.firstOrNull { it.name == now } ?: return false
-        return node.type !in PSEUDO_TYPES
-    }
-
     /** 总控组当前选中的名字（可能是 DIRECT / REJECT / 空 / 组名） */
     fun selectedNow(group: String): String =
         groups().firstOrNull { it.name == group }?.now ?: ""
@@ -316,35 +306,49 @@ object CoreApi {
         val timeoutMs = timeoutSec * 1000
         val probeUrl = "https://www.gstatic.com/generate_204"
 
-        // 第一优先：内核自己测「当前选中节点」。
-        // 但只有这一个节点的话太脆：它挂了就会判定整条链路不通，
-        // 于是规则被回滚、功能停摆，哪怕其余几十个节点都好着。
-        run {
-            val raw = probeGet("/proxies/PROXY/delay?timeout=" + timeoutMs +
-                "&url=" + java.net.URLEncoder.encode(probeUrl, "UTF-8"))
-            if (raw != null) {
-                val d = runCatching { JSONObject(raw).optInt("delay", -1) }.getOrDefault(-1)
-                if (d > 0) return 204
-            }
-        }
+        // 组名绝不能写死。
+        // CMFA 的默认策略组叫 PROXY，但机场自己命名的组五花八门 ——
+        // 本项目实测的机场叫「♻️ 手动切换」，另有 45 个组没有一个是 PROXY。
+        // 早期这里硬编码 /proxies/PROXY 与 /group/PROXY，两个请求都 404，
+        // 于是所谓「三级降级探测」的前两级从未生效，每次探测都退化成第三级的
+        // 「单发直连」—— 探测对节点状态完全失明。
+        // 实测代价：节点已死、同组另外 34 个节点全好时，探测仍报 connection closed，
+        // 判定整条链路不通并回滚规则。
+        val group = mainGroupName()
+        if (group != null) {
+            val g = encode(group)
 
-        // 第二优先：整组测速。50 个节点里只要有 1 个能通，链路就是可用的，
-        // 用户手动切到那个可用节点即可（节点页已经能看到每个节点的延迟）。
-        run {
-            val raw = probeGet("/group/PROXY/delay?timeout=" + timeoutMs +
-                "&url=" + java.net.URLEncoder.encode(probeUrl, "UTF-8"))
-            if (raw != null) {
-                val o = runCatching { JSONObject(raw) }.getOrNull()
-                if (o != null) {
-                    for (k in o.keys()) {
-                        if (o.optInt(k, -1) > 0) {
-                            lastError = ""
-                            return 204
-                        }
-                    }
-                    lastError = "整组 " + o.length() + " 个节点全部不通"
+            // 第一优先：内核自己测「当前选中节点」。
+            run {
+                val raw = probeGet("/proxies/" + g + "/delay?timeout=" + timeoutMs +
+                    "&url=" + java.net.URLEncoder.encode(probeUrl, "UTF-8"))
+                if (raw != null) {
+                    val d = runCatching { JSONObject(raw).optInt("delay", -1) }.getOrDefault(-1)
+                    if (d > 0) return 204
                 }
             }
+
+            // 第二优先：整组测速。50 个节点里只要有 1 个能通，链路就是可用的，
+            // 用户手动切到那个可用节点即可（节点页已经能看到每个节点的延迟）。
+            // 这一级存在的意义：别让一个坏节点把整条链路判死。
+            run {
+                val raw = probeGet("/group/" + g + "/delay?timeout=" + timeoutMs +
+                    "&url=" + java.net.URLEncoder.encode(probeUrl, "UTF-8"))
+                if (raw != null) {
+                    val o = runCatching { JSONObject(raw) }.getOrNull()
+                    if (o != null) {
+                        for (k in o.keys()) {
+                            if (o.optInt(k, -1) > 0) {
+                                lastError = ""
+                                return 204
+                            }
+                        }
+                        lastError = "整组 " + o.length() + " 个节点全部不通"
+                    }
+                }
+            }
+        } else {
+            lastError = "取不到总控策略组，跳过节点级探测"
         }
 
         // 兜底：tun 模式下 App 自身流量已被代理，直接请求一次即可

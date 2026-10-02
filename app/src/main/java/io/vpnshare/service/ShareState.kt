@@ -72,9 +72,21 @@ object ShareState {
     val running: Boolean
         get() = phase == Phase.RUNNING || phase == Phase.DEGRADED
 
-    fun log(line: String) {
-        // 同时镜像到 logcat：这样 adb logcat 能拿到全部应用日志，不必只靠界面。
-        runCatching { android.util.Log.i("VpnShare", line) }
+    fun log(line: String) = log(line, mirrorToLogcat = true)
+
+    /**
+     * 内核输出的日志行。
+     *
+     * 不再镜像到 logcat —— CoreManager.pump() 已经带 core[OUT] / core[ERR] 前缀写过一次了。
+     * 早期两处各写一遍，实测每条内核日志在 logcat 里出现两次（7 组配对、0 个单个），
+     * 等于把 logcat 环形缓冲的可用历史砍掉一半，而排障恰恰最依赖那段历史。
+     */
+    fun logCore(line: String) = log(line, mirrorToLogcat = false)
+
+    private fun log(line: String, mirrorToLogcat: Boolean) {
+        // 应用自己的日志镜像到 logcat：这样 adb logcat 能拿到全部应用日志，不必只靠界面。
+        // 内核日志由 CoreManager.pump() 负责写（带 core[OUT] 前缀，便于区分来源）。
+        if (mirrorToLogcat) runCatching { android.util.Log.i("VpnShare", line) }
         synchronized(logs) {
             logs.addLast(line)
             while (logs.size > MAX_LOG) logs.removeFirst()
