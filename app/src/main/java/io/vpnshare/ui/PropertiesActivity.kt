@@ -76,9 +76,14 @@ class PropertiesActivity : BaseListActivity() {
         addDetail("状态", phaseLabel(), if (coreRunning) "转发 " + Format.bytes(ShareState.totalBytes) else "")
         addDetail("热点接口", ShareState.iface.ifBlank { "—" }, "")
         addDetail("接管规则", (listOf(ShareState.tcpOk, ShareState.udpOk, ShareState.dnsOk).count { it }).toString() + " / 3", "")
+        addDetail(
+            "已转发 / 梯子",
+            Format.bytes(ShareState.totalBytes) + " / " + Format.bytes(ShareState.proxiedBytes),
+            "前者含直连，后者才消耗机场配额"
+        )
         row("共享状态", phaseLabel())
         row("热点接口", ShareState.iface.ifBlank { "—" })
-        row("已转发", Format.bytes(ShareState.totalBytes))
+        row("已转发", Format.bytes(ShareState.totalBytes) + "（其中梯子 " + Format.bytes(ShareState.proxiedBytes) + "）")
 
         // ---- 端口 ----
         addSectionHeader("端口")

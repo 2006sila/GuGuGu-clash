@@ -568,6 +568,9 @@ class ShareService : Service() {
     @Volatile private var lastDown = -1L
     @Volatile private var lastAt = 0L
 
+    /** 梯子流量累加器状态。只在采样线程读写，不需要额外同步。 */
+    private var proxiedState = io.vpnshare.service.ProxiedTraffic.EMPTY
+
     /**
      * 每 2 秒采样一次内核的累计字节数，差值即为实时速率。
      * 用轮询而不是订阅 /traffic 流：内核重启时流会断，轮询天然自愈。
@@ -578,11 +581,22 @@ class ShareService : Service() {
         // 放在「启动流程」里会关掉刚注册好的网络联动监听（早期批量改动时误加过一行）。
         // 目前靠 startAll 里 NetworkWatcher.start 的调用顺序侥幸无害，但那是脆弱的顺序依赖。
         lastUp = -1L; lastDown = -1L; lastAt = 0L
+        proxiedState = io.vpnshare.service.ProxiedTraffic.EMPTY
+        ShareState.proxiedBytes = 0
         val r = object : Runnable {
             override fun run() {
                 if (!ShareState.running) { trafficRunnable = null; return }
                 Thread {
-                    val t = io.vpnshare.core.CoreApi.totals()
+                    val snap = io.vpnshare.core.CoreApi.snapshot()
+                    val t = snap.totals
+                    // 同一次响应里顺带累加梯子流量，不再多发一次 /connections
+                    proxiedState = io.vpnshare.service.ProxiedTraffic.account(
+                        proxiedState,
+                        snap.conns.map {
+                            io.vpnshare.service.ProxiedTraffic.Item(it.id, it.chain, it.upload, it.download)
+                        }
+                    )
+                    ShareState.proxiedBytes = proxiedState.total
                     val now = System.currentTimeMillis()
                     if (lastAt > 0 && lastUp >= 0 && now > lastAt) {
                         val dt = (now - lastAt) / 1000.0

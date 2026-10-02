@@ -25,6 +25,15 @@ object ShareState {
     val hasTraffic: Boolean get() = upTotal > 0 || downTotal > 0
     val totalBytes: Long get() = upTotal + downTotal
 
+    /**
+     * 其中**真正走代理节点**的部分（消耗机场配额的那部分）。
+     *
+     * 与 totalBytes 的差别不是小数目：热点客户端的流量在 iptables 层是全量导入内核的，
+     * 内核内部再决定走节点还是直连。所以 totalBytes 含直连，通常比这个大得多。
+     * 由服务在采样时用 ProxiedTraffic 增量累加得出，本次共享有效（服务启动清零）。
+     */
+    @Volatile var proxiedBytes: Long = 0
+
     // ---- 速率历史（由服务每 2 秒采样一次）----
     /**
      * 一条采样。速率单位是字节/秒。

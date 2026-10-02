@@ -11,6 +11,7 @@ import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 import io.vpnshare.R
 import io.vpnshare.core.CoreApi
+import io.vpnshare.service.ShareState
 
 /**
  * 连接页：实时连接、命中的规则与出口、单条关闭。
@@ -125,6 +126,7 @@ class ConnectionsActivity : BaseListActivity() {
         val shown = if (showAll) conns else conns.filter { it.chain.isNotEmpty() && it.chain != "DIRECT" }
         val viaNode = conns.count { it.chain.isNotEmpty() && it.chain != "DIRECT" }
         setSummary("共 " + conns.size + " 条：经节点 " + viaNode + "，直连 " + (conns.size - viaNode) +
+            " · 本次梯子 " + io.vpnshare.util.Format.bytes(ShareState.proxiedBytes) +
             "\n每 2 秒刷新；点一行关闭该连接")
         toggleBtn.text = if (showAll) "只看经节点的" else "显示全部"
         chart.invalidate()

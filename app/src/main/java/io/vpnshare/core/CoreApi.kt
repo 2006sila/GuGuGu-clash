@@ -191,9 +191,31 @@ object CoreApi {
         return Totals(o.optLong("uploadTotal"), o.optLong("downloadTotal"))
     }
 
+    /** 一次 /connections 的完整结果：全局累计 + 连接明细 */
+    data class Snapshot(val totals: Totals, val conns: List<Conn>)
+
+    /**
+     * 一次请求拿全。
+     *
+     * 流量采样既要算速率（totals）又要算梯子用量（逐条连接），
+     * 拆成两次 /connections 会白白多一倍请求量与一次 JSON 解析。
+     */
+    fun snapshot(): Snapshot {
+        val raw = get("/connections") ?: return Snapshot(Totals(0, 0), emptyList())
+        val root = runCatching { JSONObject(raw) }.getOrNull() ?: return Snapshot(Totals(0, 0), emptyList())
+        return Snapshot(
+            Totals(root.optLong("uploadTotal"), root.optLong("downloadTotal")),
+            parseConns(root)
+        )
+    }
+
     fun connections(): List<Conn> {
         val raw = get("/connections") ?: return emptyList()
         val root = runCatching { JSONObject(raw) }.getOrNull() ?: return emptyList()
+        return parseConns(root)
+    }
+
+    private fun parseConns(root: JSONObject): List<Conn> {
         val arr = root.optJSONArray("connections") ?: return emptyList()
         val out = mutableListOf<Conn>()
         for (i in 0 until arr.length()) {

@@ -452,8 +452,12 @@ class MainActivity : AppCompatActivity() {
         val parts = mutableListOf<String>()
         if (ShareState.iface.isNotBlank()) parts += "热点 " + ShareState.iface
         if (ShareState.coreVersion.isNotBlank()) parts += "内核 " + ShareState.coreVersion
-        // 累计转发量：对齐 CMFA 首页卡片那句「331.46 KiB 已转发」
-        if (ShareState.hasTraffic) parts += io.vpnshare.util.Format.bytes(ShareState.totalBytes) + " 已转发"
+        // 累计转发量（内核全局，含直连）+ 其中真正走节点、消耗机场配额的部分。
+        // 括号里那个数才是「梯子用了多少」，两者通常差得很远。
+        if (ShareState.hasTraffic) {
+            parts += "已转发 " + io.vpnshare.util.Format.bytes(ShareState.totalBytes) +
+                "（梯子 " + io.vpnshare.util.Format.bytes(ShareState.proxiedBytes) + "）"
+        }
         return if (parts.isEmpty()) getString(R.string.action_state_running) else parts.joinToString("   ")
     }
 
