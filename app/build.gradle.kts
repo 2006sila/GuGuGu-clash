@@ -1,7 +1,21 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
 }
+
+// 从仓库根目录的 keystore.properties 读 release 签名配置。
+// 该文件不入库（.gitignore 已排除 *.jks / keystore.properties）。
+// 没有它时也能构建，只是产物是 unsigned 包 —— 能编译，但装不上。
+// 这样做的用意：贡献者 clone 后无需任何签名材料就能跑通构建与测试，
+// 而维护者本地有该文件时会自动打出可发布的签名包。
+val keystoreProps = Properties().apply {
+    val f = rootProject.file("keystore.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+val releaseStoreFile = keystoreProps.getProperty("storeFile")
+val hasReleaseSigning = !releaseStoreFile.isNullOrBlank() && file(releaseStoreFile).exists()
 
 android {
     namespace = "io.vpnshare"
@@ -38,15 +52,38 @@ android {
         getByName("armv7") { assets.srcDirs("src/armv7/assets") }
     }
 
+    lint {
+        // release 打包时不做 lint 阻塞检查。两个理由：
+        //  1) lintVitalAnalyze 需要额外下载 lint-checks / intellij-core / kotlin-compiler
+        //     三个大 jar，国内网络访问 dl.google.com 经常超时 —— 一个本来能成功的打包
+        //     会先卡 6 分钟再失败，而且报的是「Read timed out」，看不出是网络问题；
+        //  2) 这类静态检查在 IDE 或 CI 里跑更合适，不该阻塞出包。
+        // 需要时手动执行 ./gradlew :app:lint 即可，配置没丢。
+        checkReleaseBuilds = false
+        abortOnError = false
+    }
+
     androidResources {
         // 这些本来就是压缩数据或二进制，别再让 aapt 压一遍
         noCompress += listOf("dat", "metadb", "mmdb", "gz")
+    }
+
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = file(releaseStoreFile!!)
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            if (hasReleaseSigning) signingConfig = signingConfigs.getByName("release")
         }
     }
     compileOptions {
