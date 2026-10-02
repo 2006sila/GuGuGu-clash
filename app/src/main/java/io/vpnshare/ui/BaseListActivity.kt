@@ -43,7 +43,8 @@ abstract class BaseListActivity : AppCompatActivity() {
         container.removeAllViews()
     }
 
-    protected fun addButton(label: String, style: Int = R.style.Widget_VpnShare_Button_Tonal, onClick: () -> Unit) {
+    /** 返回按钮本身，方便调用方在后续刷新里原地改文案（而不是每次重建） */
+    protected fun addButton(label: String, style: Int = R.style.Widget_VpnShare_Button_Tonal, onClick: () -> Unit): com.google.android.material.button.MaterialButton {
         val b = com.google.android.material.button.MaterialButton(this, null, style).apply {
             text = label
             setOnClickListener { onClick() }
@@ -54,6 +55,7 @@ abstract class BaseListActivity : AppCompatActivity() {
         )
         lp.bottomMargin = resources.getDimensionPixelSize(R.dimen.card_gap)
         container.addView(b, lp)
+        return b
     }
 
     protected fun addSectionHeader(label: String) {

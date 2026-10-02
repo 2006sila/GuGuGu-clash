@@ -16,10 +16,27 @@ object ClientMonitor {
         val mac: String,
         val iface: String,
         val state: String
-    ) {
-        /** 网关自身不是客户端 */
-        val isGatewayLike: Boolean get() = ip.endsWith(".1")
-    }
+    )
+
+    /**
+     * 读本机所有 IPv4 地址。
+     *
+     * 用来排除「网关/本机自身」。早期用的是「IP 以 .1 结尾就当网关」这个猜测 ——
+     * 在热点网段不是 .1 的机型上（例如本机的 10.61.80.170）完全不生效，反过来
+     * 还会把恰好分到 10.61.80.1 的真实客户端当成网关隐藏掉。改成问内核要准确答案。
+     */
+    fun localAddresses(): Set<String> =
+        parseLocalAddresses(RootShell.run("ip -o -4 addr show 2>/dev/null", timeoutSec = 10).out)
+
+    /** 从 `ip -o -4 addr show` 的输出里取地址。纯函数，便于测试。 */
+    fun parseLocalAddresses(raw: String): Set<String> =
+        raw.lineSequence().mapNotNull { line ->
+            Regex("inet (\\d{1,3}(?:\\.\\d{1,3}){3})").find(line)?.groupValues?.get(1)
+        }.toSet()
+
+    /** 排除本机地址与全零 MAC。纯函数，便于测试。 */
+    fun filterClients(clients: List<Client>, localIps: Set<String>): List<Client> =
+        clients.filter { it.ip !in localIps && it.mac != "00:00:00:00:00:00" }
 
     /** 读取指定接口下的邻居；iface 为空则读取全部接口。 */
     fun list(iface: String? = null): List<Client> {
@@ -28,7 +45,7 @@ object ClientMonitor {
         val r = RootShell.run(cmd, timeoutSec = 10)
         val out = r.out.ifBlank { arpFallback() }
         // 指定 iface 时必须把接口名传下去：ip neigh show dev X 的输出里**不含** dev 字段
-        return parse(out, iface).filter { !it.isGatewayLike && it.mac != "00:00:00:00:00:00" }
+        return filterClients(parse(out, iface), localAddresses())
     }
 
     /**

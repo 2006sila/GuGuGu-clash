@@ -23,7 +23,6 @@ object ProfileRunner {
         p: Prefs.Data,
         providerFile: String,
         localRulesets: Boolean,
-        store: ProfileStore,
         subscriptionYaml: String?
     ): ConfigBuilder.Options {
             return ConfigBuilder.Options(
@@ -120,7 +119,7 @@ object ProfileRunner {
                 if (it.isNotBlank()) return it
             }
         }
-        val opts = buildOptions(p, profile?.providerFile ?: "", countDeviceRulesets() > 0, store, original)
+        val opts = buildOptions(p, profile?.providerFile ?: "", countDeviceRulesets() > 0, original)
         return "rules:\n" + ConfigBuilder.ruleLines(opts).joinToString("\n")
     }
 
@@ -162,7 +161,7 @@ object ProfileRunner {
         val template = ctx.assets.open("base.template.yaml").bufferedReader().use { it.readText() }
         val localRulesets = countDeviceRulesets() > 0
 
-        val opts = buildOptions(p, profile.providerFile, localRulesets, store, store.originalText(profile))
+        val opts = buildOptions(p, profile.providerFile, localRulesets, store.originalText(profile))
         // 订阅处理方式（对齐 CMFA 的取舍）：
         //   adopt   = 订阅原文打补丁，保留它自带的策略组与规则
         //   rebuild = 只取节点，用我们内置的策略组与规则

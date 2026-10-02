@@ -75,12 +75,32 @@ class ClientMonitorTest {
         assertTrue(ClientMonitor.parse(raw, "wlan2").isEmpty())
     }
 
+    // ---------------- 本机地址过滤（替代早期的「.1 后缀」猜测） ----------------
+
     @Test
-    fun marksGatewayLikeIp() {
-        // .1 结尾视为网关（不同 ROM 网关不同，这里只是启发式）
-        val c = ClientMonitor.parse("10.61.80.1 lladdr aa:bb:cc:dd:ee:ff REACHABLE", "wlan2")
-        assertTrue(c[0].isGatewayLike)
-        val pc = ClientMonitor.parse(devLessForm, "wlan2")
-        assertTrue(!pc[0].isGatewayLike)
+    fun parsesLocalAddressesFromIpAddrOutput() {
+        // 真机输出：ip -o -4 addr show（每行一条，注意 wlan2 那行末尾设备会带一个反斜杠）
+        val raw = listOf(
+            "119: wlan2    inet 10.61.80.170/24 brd 10.61.80.255 scope global wlan2\\       valid_lft forever preferred_lft forever",
+            "1: lo    inet 127.0.0.1/8 scope host lo",
+            "24: rmnet_data0    inet 10.0.0.5/24 scope global rmnet_data0"
+        ).joinToString("\n")
+        val set = ClientMonitor.parseLocalAddresses(raw)
+        assertEquals(setOf("10.61.80.170", "127.0.0.1", "10.0.0.5"), set)
+    }
+
+    @Test
+    fun filterDropsLocalAddressesAndZeroMac() {
+        // 关键回归：早期用「IP 以 .1 结尾即网关」来排除，在网关不是 .1 的机型上失效，
+        // 反过来还会把恰好分到 x.x.x.1 的真实客户端隐藏掉。现在按内核给的本机地址排除。
+        val clients = listOf(
+            ClientMonitor.Client("10.61.80.170", "aa:bb:cc:dd:ee:ff", "wlan2", "REACHABLE"), // 本机自己
+            ClientMonitor.Client("10.61.80.1", "aa:bb:cc:dd:ee:01", "wlan2", "REACHABLE"),  // 不该再被当网关
+            ClientMonitor.Client("10.61.80.127", "d4:ab:61:7e:be:63", "wlan2", "REACHABLE"),
+            ClientMonitor.Client("10.61.80.9", "00:00:00:00:00:00", "wlan2", "FAILED")     // 全零 MAC
+        )
+        val kept = ClientMonitor.filterClients(clients, setOf("10.61.80.170"))
+        assertEquals(2, kept.size)
+        assertEquals(listOf("10.61.80.1", "10.61.80.127"), kept.map { it.ip })
     }
 }

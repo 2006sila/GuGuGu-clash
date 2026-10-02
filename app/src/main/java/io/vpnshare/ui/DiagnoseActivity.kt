@@ -33,7 +33,6 @@ class DiagnoseActivity : BaseListActivity() {
 
     private fun render() {
         clear()
-        val p = Prefs.load(this)
 
         val missing = PermissionCheck.missingCritical(this)
         setSummary(

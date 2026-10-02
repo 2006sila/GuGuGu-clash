@@ -444,7 +444,6 @@ class ProfilesActivity : BaseListActivity() {
     }
 
     private fun importFromText(text: String, name: String) {
-        val p = Prefs.load(this)
         Thread {
             val r = SubImporter.importText(this, "local://" + System.currentTimeMillis(), text, "", name)
             runOnUiThread {

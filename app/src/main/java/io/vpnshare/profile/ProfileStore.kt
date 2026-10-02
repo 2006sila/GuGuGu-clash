@@ -49,13 +49,13 @@ class ProfileStore(private val ctx: Context) {
         val f = File(dir, p.providerFile)
         if (!f.exists()) return null
         // 加密时 SecretVault.open 返回 null 表示「需要密码」，调用方据此提示解锁
-        return SecretVault.open(f.readText(), enc)
+        return SecretVault.open(f.readText())
     }
 
     fun originalText(p: Profile): String? {
         val f = File(dir, p.originalFile)
         if (!f.exists()) return null
-        return SecretVault.open(f.readText(), enc)
+        return SecretVault.open(f.readText())
     }
 
     /** 文件是密文但当前没有密码 —— 用于给用户一个准确提示，而不是「数据缺失」 */

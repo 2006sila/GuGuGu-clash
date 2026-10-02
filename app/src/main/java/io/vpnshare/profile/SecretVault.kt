@@ -21,8 +21,13 @@ object SecretVault {
         return CryptoUtil.encrypt(plain, pw)
     }
 
-    /** 解封；返回 null 表示「需要密码/密码错」 */
-    fun open(text: String, encryptEnabled: Boolean): String? {
+    /**
+     * 解封；返回 null 表示「需要密码/密码错」。
+     *
+     * 刻意不收 encryptEnabled：是否加密以**内容**为准（isEncrypted 看头部标记），
+     * 而不是看偏好开关。用户关掉加密后，之前加密过的旧文件仍应能正常读出来。
+     */
+    fun open(text: String): String? {
         if (!CryptoUtil.isEncrypted(text)) return text
         val pw = password ?: return null
         return runCatching { CryptoUtil.decrypt(text, pw) }.getOrNull()

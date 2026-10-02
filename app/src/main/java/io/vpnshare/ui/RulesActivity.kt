@@ -129,7 +129,8 @@ class RulesActivity : BaseListActivity() {
             val s = line.trim()
             if (s.isEmpty() || s.startsWith("#")) continue
             val r = CustomRule.parse(s)
-            if (r.line != null) out.add(s to r.line!!)
+            val parsedLine = r.line
+            if (parsedLine != null) out.add(s to parsedLine)
         }
         return out
     }
@@ -173,10 +174,11 @@ class RulesActivity : BaseListActivity() {
                     Toast.makeText(this, res.error ?: "无法识别", Toast.LENGTH_LONG).show()
                 } else {
                     val p = Prefs.load(this)
+                    val newLine = res.line
                     val newRaw = if (original == null) {
-                        if (p.customRules.isBlank()) res.line!! else p.customRules.trimEnd() + "\n" + res.line
+                        if (p.customRules.isBlank()) newLine else p.customRules.trimEnd() + "\n" + newLine
                     } else {
-                        p.customRules.split("\n").joinToString("\n") { if (it.trim() == original) res.line!! else it }
+                        p.customRules.split("\n").joinToString("\n") { if (it.trim() == original) newLine else it }
                     }
                     Prefs.save(this, p.copy(customRules = newRaw))
                     Toast.makeText(this, "已保存；重启共享后生效", Toast.LENGTH_SHORT).show()

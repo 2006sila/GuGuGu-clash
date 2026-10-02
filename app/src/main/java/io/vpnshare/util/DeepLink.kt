@@ -47,7 +47,10 @@ object DeepLink {
         }
         if (value.isNullOrBlank()) return Result.Bad("缺少 url 参数")
 
-        val decoded = runCatching { URLDecoder.decode(value, "UTF-8") }.getOrNull()
+        // URLDecoder 会把「+」解成空格。订阅链接里的 + 多数没有百分号编码
+        // （机场 token 常用 base64/自定义字符集），一旦被换成空格，地址就废了。
+        // 先把它转义成 %2B，这样只解真正的 %XX 序列。
+        val decoded = runCatching { URLDecoder.decode(value.replace("+", "%2B"), "UTF-8") }.getOrNull()
             ?: return Result.Bad("url 参数编码损坏")
 
         val d = decoded.trim()

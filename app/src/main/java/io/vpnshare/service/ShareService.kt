@@ -174,7 +174,6 @@ class ShareService : Service() {
             //   root     → 网络 ✅ + 能建 redir/tproxy 监听 ✅  → 唯一可行的
             //   uid 2000 → 网络 ✅ 但建 redir/tproxy 报 operation not permitted ✗
             //   App uid  → 被系统掐断网络 ✗
-            val runAsUid: Int? = null
             // 启动前先确认内核是不是已经在跑。App 进程被系统重建后记不住这件事，
             // 而启动脚本开头会 pkill 旧内核 —— 若此时热点规则仍然生效，
             // 就会造成数秒断网（实测把用户电脑断过）。所以在跑就一律复用。
