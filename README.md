@@ -172,6 +172,11 @@ Android 13+ 的通知是运行时权限。进「诊断 → 权限检查」，确
 
 ## 从源码构建
 
+```bash
+git clone https://github.com/2006sila/guguguclash.git
+cd guguguclash
+```
+
 ### 准备资产
 
 仓库内已包含构建所需的全部资产（内核二进制、geo 数据、许可证全文），clone 后可直接构建。
