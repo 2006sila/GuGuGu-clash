@@ -52,4 +52,27 @@ class DeepLinkTest {
     fun extractsHost() {
         assertEquals("example.com", DeepLink.hostOf("https://example.com/sub?token=1"))
     }
+
+    // ---------------- '+' 不能被解成空格（回归） ----------------
+
+    @Test
+    fun keepsPlusInUnencodedUrl() {
+        // URLDecoder.decode 会把 '+' 变成空格。订阅链接里的 + 多数没做百分号编码
+        // （机场 token 常用自定义字符集），一旦被换成空格，地址就废了。
+        assertEquals("https://a.com/sub?token=a+b", url(DeepLink.parse("vpnshare://import?url=https://a.com/sub?token=a+b")))
+    }
+
+    @Test
+    fun decodesPercentEncodedPlus() {
+        // 真正的 %2B 仍应解成 +
+        assertEquals("https://a.com/sub?token=a+b", url(DeepLink.parse("vpnshare://import?url=https%3A%2F%2Fa.com%2Fsub%3Ftoken%3Da%2Bb")))
+    }
+
+    @Test
+    fun plusAndPercentEncodingTogether() {
+        assertEquals(
+            "https://a.com/p?a=1+2&b=x y",
+            url(DeepLink.parse("vpnshare://import?url=https%3A%2F%2Fa.com%2Fp%3Fa%3D1%2B2%26b%3Dx%20y"))
+        )
+    }
 }
