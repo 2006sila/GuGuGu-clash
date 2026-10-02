@@ -76,7 +76,7 @@ object SubImporter {
         }
         val det = SubFormat.detect(body)
         val store = ProfileStore(ctx)
-        val id = store.idFor(url)
+        val id = ProfileStore.idFor(url)
 
         val providerYaml = when (det.kind) {
             SubKind.CLASH_YAML -> {

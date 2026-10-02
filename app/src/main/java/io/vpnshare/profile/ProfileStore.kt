@@ -10,6 +10,22 @@ import java.io.File
  */
 class ProfileStore(private val ctx: Context) {
 
+    companion object {
+        /**
+         * 用 URL 生成稳定 id，重复导入同一订阅会覆盖而不是堆叠。
+         *
+         * 放在伴生对象里而不是实例方法：它不依赖 Context，这样单元测试能直接调到，
+         * 不必为了一个纯哈希函数去伪造 Android Context。
+         */
+        fun idFor(url: String): String {
+            val clean = url.trim()
+            var h = 1125899906842597L
+            for (c in clean) h = 31 * h + c.code
+            return "p" + (h and 0x7FFFFFFFFFFFFFFFL).toString(16)
+        }
+    }
+
+
     data class Profile(
         val id: String,
         val name: String,
@@ -79,14 +95,6 @@ class ProfileStore(private val ctx: Context) {
     fun writePayload(p: Profile, providerYaml: String, original: String) {
         File(dir, p.providerFile).writeText(SecretVault.seal(providerYaml, enc))
         File(dir, p.originalFile).writeText(SecretVault.seal(original, enc))
-    }
-
-    /** 用 URL 生成稳定 id，重复导入同一订阅会覆盖而不是堆叠 */
-    fun idFor(url: String): String {
-        val clean = url.trim()
-        var h = 1125899906842597L
-        for (c in clean) h = 31 * h + c.code
-        return "p" + (h and 0x7FFFFFFFFFFFFFFFL).toString(16)
     }
 
     private fun serialize(p: Profile) = listOf(

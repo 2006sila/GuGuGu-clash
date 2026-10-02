@@ -86,11 +86,22 @@ object TetherManager {
      * 不在 shell 里写 if/elif/grep 组合：经 su 会话执行时曾出现整段被判为未监听，
      * 而同样的脚本用 adb su 手跑却是三项全过 —— 与其猜 shell 差异，不如把原文拿回来自己判。
      */
+    /**
+     * 从 netstat/ss 的输出判断这些端口是否在监听。
+     *
+     * 抽成纯函数是因为这类判断错了会静默出事，而且已经出过两次：
+     * 一次是只查 redir/tproxy/dns 没查 mixed，导致一个「其它端口正常但 mixed 没绑上」
+     * 的孤儿内核被判健康并复用，随后探测超时、服务把整个共享回滚；
+     * 另一次是端口号前缀互相误匹配（7890 与 78901）导致假阳性。
+     */
+    fun parsePortStates(raw: String, ports: List<Int>): Map<Int, Boolean> =
+        ports.associateWith { port -> Regex(":" + port + "(\\s|$)").containsMatchIn(raw) }
+
     fun listeningPortsDetailed(p: Prefs.Data): PortReport {
         val ports = listOf(p.redirPort, p.tproxyPort, p.dnsPort)
         val r = RootShell.run("netstat -ltn 2>/dev/null; ss -ltn 2>/dev/null", timeoutSec = 20)
         val out = r.out
-        val state = ports.associateWith { port -> Regex(":" + port + "(\\s|$)").containsMatchIn(out) }
+        val state = parsePortStates(out, ports)
         val kept = out.lineSequence()
             .filter { line -> ports.any { line.contains(":" + it) } }
             .joinToString(" / ")

@@ -300,6 +300,39 @@ object CoreApi {
      * 探测会误判成「节点不可用」，进而把刚装好的热点规则回滚掉 —— 表现为
      * 「服务显示已回滚、电脑拿不到代理」。
      */
+    /**
+     * 从 /proxies/{组}/delay 的响应解析延迟。
+     *
+     * 返回 -1 表示「不可用」：无正延迟、解析失败、或返回的是错误对象
+     * （实测内核在测不动时会返回 {"message":"An error occurred in the delay test"}）。
+     * 抽成纯函数是为了能测 —— 三级探测的判定逻辑曾经因为组名写死而整体失效，
+     * 这类"看着在工作其实没工作"的错误只有测试能挡住。
+     */
+    fun nodeDelayOf(raw: String?): Int {
+        if (raw.isNullOrBlank()) return -1
+        val o = runCatching { JSONObject(raw) }.getOrNull() ?: return -1
+        val d = o.optInt("delay", -1)
+        return if (d > 0) d else -1
+    }
+
+    /** 整组测速的结果：可用节点数与返回条目数 */
+    data class GroupProbe(val available: Int, val total: Int)
+
+    /**
+     * 从 /group/{组}/delay 的响应统计可用节点数。
+     *
+     * 只要还有 >=1 个节点有正延迟，就说明「链路本身是通的，只是当前节点坏了」——
+     * 这一级存在的全部意义就是别让一个坏节点把整条链路判死。
+     * 注意 DIRECT 那种本地直出也会返回正延迟，调用方需自行确认组内是否含伪节点。
+     */
+    fun groupProbeOf(raw: String?): GroupProbe {
+        if (raw.isNullOrBlank()) return GroupProbe(0, 0)
+        val o = runCatching { JSONObject(raw) }.getOrNull() ?: return GroupProbe(0, 0)
+        var n = 0
+        for (k in o.keys()) if (o.optInt(k, -1) > 0) n++
+        return GroupProbe(n, o.length())
+    }
+
     fun probeEgress(timeoutSec: Int = 8, viaProxyPort: Int = 0): Int {
         // 注意单位：本参数是【秒】。曾经按毫秒传（probeEgress(8) 被当成 8ms），
         // 导致延迟接口 timeout=8ms、OkHttp 也 8ms，探测永远瞬间失败。
@@ -322,10 +355,7 @@ object CoreApi {
             run {
                 val raw = probeGet("/proxies/" + g + "/delay?timeout=" + timeoutMs +
                     "&url=" + java.net.URLEncoder.encode(probeUrl, "UTF-8"))
-                if (raw != null) {
-                    val d = runCatching { JSONObject(raw).optInt("delay", -1) }.getOrDefault(-1)
-                    if (d > 0) return 204
-                }
+                if (nodeDelayOf(raw) > 0) return 204
             }
 
             // 第二优先：整组测速。50 个节点里只要有 1 个能通，链路就是可用的，
@@ -334,18 +364,12 @@ object CoreApi {
             run {
                 val raw = probeGet("/group/" + g + "/delay?timeout=" + timeoutMs +
                     "&url=" + java.net.URLEncoder.encode(probeUrl, "UTF-8"))
-                if (raw != null) {
-                    val o = runCatching { JSONObject(raw) }.getOrNull()
-                    if (o != null) {
-                        for (k in o.keys()) {
-                            if (o.optInt(k, -1) > 0) {
-                                lastError = ""
-                                return 204
-                            }
-                        }
-                        lastError = "整组 " + o.length() + " 个节点全部不通"
-                    }
+                val gp = groupProbeOf(raw)
+                if (gp.available > 0) {
+                    lastError = ""
+                    return 204
                 }
+                if (raw != null) lastError = "整组 " + gp.total + " 个节点全部不通"
             }
         } else {
             lastError = "取不到总控策略组，跳过节点级探测"
