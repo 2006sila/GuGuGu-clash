@@ -449,6 +449,8 @@ class MainActivity : AppCompatActivity() {
             return if (missing.isNotEmpty()) "缺 " + missing.joinToString("、")
             else getString(R.string.action_sub_stopped)
         }
+        // 这一行的可用宽度只有约 546px（卡片文字列），本来就占两行；
+        // 加上「（梯子 …）」不改变行数，所以内核版本保留在这里。
         val parts = mutableListOf<String>()
         if (ShareState.iface.isNotBlank()) parts += "热点 " + ShareState.iface
         if (ShareState.coreVersion.isNotBlank()) parts += "内核 " + ShareState.coreVersion
