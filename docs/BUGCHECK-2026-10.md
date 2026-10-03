@@ -149,13 +149,13 @@ adb 侧只能以 shell(2000) 操作 —— auto 模式禁止提权，所以 ipta
 
 证据链：
 
-1. 电脑拿到的 DNS 就是热点网关：ipconfig /all → DNS Servers . . . : 10.123.89.39；
-2. tproxy.sh 的 nat 链顺序是「私网放行(RETURN) → 53 重定向」，而 10.123.89.39 落在 HS_NETS 的 10.0.0.0/8 里
+1. 电脑拿到的 DNS 就是热点网关：ipconfig /all → DNS Servers . . . : 10.x.x.x；
+2. tproxy.sh 的 nat 链顺序是「私网放行(RETURN) → 53 重定向」，而 10.x.x.x 落在 HS_NETS 的 10.0.0.0/8 里
    → 客户端解析请求命中 RETURN，永远走不到 53 重定向；
 3. 内核日志里电脑的连接全是 IP 匹配：
-   [TCP] 10.123.89.127 → 39.136.117.190:443 match IPCIDR(...) using 国内网站[DIRECT]
-   [TCP] 10.123.89.127 → 150.171.28.11:443 match Match using 漏网之鱼[香港]
-4. 端到端实验：电脑 Resolve-DnsName www.github.com -Server 10.123.89.39 → 20.205.243.166，
+   [TCP] 10.x.x.100 → 39.136.117.190:443 match IPCIDR(...) using 国内网站[DIRECT]
+   [TCP] 10.x.x.100 → 150.171.28.11:443 match Match using 漏网之鱼[香港]
+4. 端到端实验：电脑 Resolve-DnsName www.github.com -Server 10.x.x.x → 20.205.243.166，
    再连它的 443，内核里查到的是 rule=Match、payload 空、host 空、chains=香港>手动切换>漏网之鱼 ——
    内核从没见过这次解析，所以域名规则、广告拦截、机场自带分组对共享流量全部失效。
 
@@ -192,7 +192,7 @@ box4magisk / Surfing v7 与上一轮的本实现都只认 AOSP 键，在这台 C
 2. 内核 ipv6: true 且客户端 v6 被 ip6tables -I FORWARD -i wlan2 -j DROP 阻断：
    本应用没有 IPv6 透明代理，只能掐掉（客户端先试 v6 再回落，首包偏慢）。
    两个模块有完整的 ip6tables TPROXY 路径 —— 这是它们确实更强的一处。
-3. vgate0 172.30.238.121/32（ColorOS 双通道加速）存在；客户端流量走 wlan2 被 tproxy 抓住，目前无影响。
+3. vgate0 172.30.x.x/32（ColorOS 双通道加速）存在；客户端流量走 wlan2 被 tproxy 抓住，目前无影响。
 
 ---
 

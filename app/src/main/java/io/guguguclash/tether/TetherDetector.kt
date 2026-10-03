@@ -48,7 +48,7 @@ object TetherDetector {
     /**
      * 解析 ip route show table local_network 的输出，取共享接口。
      * 这是 AOSP 给 tethering 用的专用路由表，比按网段/命名猜准得多：
-     * 实测某 ColorOS 机型热点网段是 10.61.80.0/24、网关是 .170 而不是 .1，
+     * 实测某 ColorOS 机型热点网段是 10.x.x.0/24、网关是 .x 而不是 .1，
      * 而且主表没有默认路由（策略路由），靠启发式只能蒙。
      */
     fun parseLocalNetworkIfaces(output: String): List<String> {

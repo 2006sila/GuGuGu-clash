@@ -102,7 +102,7 @@ GuGuGu-clash 换了一条路：**用 root 在手机侧把热点客户端的流�
 ### 实测环境
 
 本项目在 **一加 PJZ110 / ColorOS 16 / Android 16 / Magisk** 上开发与验证，
-热点接口 `wlan2`、网段 `10.61.80.0/24`、网关 `.170`（不是常见的 `.1`）。
+热点接口 `wlan2`、网段 `10.x.x.0/24`、网关 `.x`（不是常见的 `.1`）。
 
 热点接口检测走的是 `ip route show table local_network`，理论上兼容其它机型的自定义热点网关，
 但**未在其它 ROM 上验证过**。遇到问题欢迎提 issue 并附上 `scripts/device-diagnose.ps1` 的输出。

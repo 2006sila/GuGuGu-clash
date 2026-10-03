@@ -22,8 +22,8 @@ object ClientMonitor {
      * 读本机所有 IPv4 地址。
      *
      * 用来排除「网关/本机自身」。早期用的是「IP 以 .1 结尾就当网关」这个猜测 ——
-     * 在热点网段不是 .1 的机型上（例如本机的 10.61.80.170）完全不生效，反过来
-     * 还会把恰好分到 10.61.80.1 的真实客户端当成网关隐藏掉。改成问内核要准确答案。
+     * 在热点网段不是 .1 的机型上（例如本机的 10.x.x.x）完全不生效，反过来
+     * 还会把恰好分到 10.x.x.1 的真实客户端当成网关隐藏掉。改成问内核要准确答案。
      */
     fun localAddresses(): Set<String> =
         parseLocalAddresses(RootShell.run("ip -o -4 addr show 2>/dev/null", timeoutSec = 10).out)

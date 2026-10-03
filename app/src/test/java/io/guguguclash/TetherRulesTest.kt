@@ -27,7 +27,7 @@ tcp6       0      0 [::]:1053               [::]:*                  LISTEN
 tcp6       0      0 [::]:7893               [::]:*                  LISTEN
 tcp6       0      0 [::]:7892               [::]:*                  LISTEN
 tcp6       0      0 [::]:7890               [::]:*                  LISTEN
-tcp6       0      0 ::ffff:10.61.80.17:7892 ::ffff:10.61.80.1:62836 TIME_WAIT
+tcp6       0      0 ::ffff:10.99.0.17:7892 ::ffff:10.99.0.1:62836 TIME_WAIT
 """.trimIndent()
 
     @Test
@@ -131,9 +131,9 @@ tcp6 0 0 [::]:1053 [::]:* LISTEN
 
     @Test
     fun tetherKeyCarriesAddressesSoSubnetChangesAreVisible() {
-        val addrA = "5: wlan2    inet 10.61.80.170/24 brd 10.61.80.255 scope global wlan2"
+        val addrA = "5: wlan2    inet 10.99.0.170/24 brd 10.99.0.255 scope global wlan2"
         val a = TetherManager.tetherKeyOf("wlan2", addrA)
-        assertEquals("wlan2|10.61.80.170", a)
+        assertEquals("wlan2|10.99.0.170", a)
         // 同一网络下多次读取必须稳定，否则每次都判「变化」→ 反复重装规则
         assertEquals(a, TetherManager.tetherKeyOf("wlan2", addrA))
         // 换了网段（接口名不变）必须能看出来，否则规则永远不会重建

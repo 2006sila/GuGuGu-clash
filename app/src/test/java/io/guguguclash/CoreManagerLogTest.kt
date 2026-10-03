@@ -16,9 +16,9 @@ class CoreManagerLogTest {
 
     @Test
     fun connectionLinesAreNotMirrored() {
-        val tcp = "time=\"2026-10-03T10:39:20+08:00\" level=info msg=\"[TCP] 10.123.89.127:57075 --> 39.136.117.190:443 match IPCIDR(39.136.64.0/18) using 国内网站[DIRECT]\""
+        val tcp = "time=\"2026-10-03T10:39:20+08:00\" level=info msg=\"[TCP] 10.98.0.127:57075 --> 39.136.117.190:443 match IPCIDR(39.136.64.0/18) using 国内网站[DIRECT]\""
         assertFalse("每连接一条的 info 日志不该进 logcat", CoreManager.shouldMirrorToLogcat(tcp))
-        val udp = "level=info msg=\"[UDP] 10.123.89.127:49954 --> 121.62.22.156:486 match IPCIDR using DIRECT\""
+        val udp = "level=info msg=\"[UDP] 10.98.0.127:49954 --> 121.62.22.156:486 match IPCIDR using DIRECT\""
         assertFalse(CoreManager.shouldMirrorToLogcat(udp))
     }
 
