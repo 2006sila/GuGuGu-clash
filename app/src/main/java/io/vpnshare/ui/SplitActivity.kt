@@ -72,13 +72,6 @@ class SplitActivity : BaseListActivity() {
         }
         addEntry(R.drawable.ic_nodes, "节点过滤与重命名", nodeSummary) { nodeTransformDialog() }
 
-        // 自定义直连域名原在「设置」弹窗里，和分流规则是同一类东西，挪过来
-        val directCount = p.customDirectDomains.count { it.isNotBlank() }
-        addEntry(
-            R.drawable.ic_rules, "直连域名",
-            if (directCount == 0) "未添加（这些域名不走代理）" else directCount.toString() + " 个域名不走代理"
-        ) { directDomainDialog() }
-
         // 应用：决定「哪个 App 走」
         addSectionHeader("应用")
         val split = when (p.appSplitMode) {
@@ -128,26 +121,6 @@ class SplitActivity : BaseListActivity() {
 
     // ---------------- 外观 ----------------
 
-    private fun directDomainDialog() {
-        val p = Prefs.load(this)
-        val box = column()
-        box.addView(TextView(this).apply {
-            text = "每行一个域名，命中即直连。等价于 DOMAIN-SUFFIX 规则，但不用手写语法。"
-            textSize = 12f
-        })
-        val f = field(box, "直连域名", p.customDirectDomains.joinToString("\n"), multi = true)
-        AlertDialog.Builder(this)
-            .setTitle("直连域名")
-            .setView(scroll(box))
-            .setPositiveButton(R.string.action_save) { _, _ ->
-                Prefs.save(this, Prefs.load(this).copy(
-                    customDirectDomains = f.text.toString().lines().map { it.trim() }.filter { it.isNotEmpty() }
-                ))
-                afterSave()
-            }
-            .setNegativeButton(R.string.action_cancel, null)
-            .show()
-    }
 
     // ---------------- 表单辅助 ----------------
 

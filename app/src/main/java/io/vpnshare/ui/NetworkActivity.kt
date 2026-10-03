@@ -73,13 +73,60 @@ class NetworkActivity : BaseListActivity() {
             afterSave()
         }
         addEntry(
+            R.drawable.ic_power, "开机自启",
+            if (p.autoStartOnBoot) "已开启：开机后自动开始共享（需共享处于启用状态）"
+            else "已关闭：开机后不会自动开始共享"
+        ) {
+            val next = !p.autoStartOnBoot
+            Prefs.save(this, p.copy(autoStartOnBoot = next))
+            android.widget.Toast.makeText(
+                this,
+                if (next) "开机后将自动开始共享" else "已关闭开机自启",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+            afterSave()
+        }
+        addEntry(
+            R.drawable.ic_shield, "代理 UDP",
+            if (p.proxyUdp) "已开启：客户端的 UDP（含 QUIC）也走代理"
+            else "已关闭：只代理 TCP，UDP 直连"
+        ) {
+            val next = !p.proxyUdp
+            Prefs.save(this, p.copy(proxyUdp = next))
+            android.widget.Toast.makeText(
+                this,
+                if (next) "UDP 也走代理；重启共享生效" else "UDP 直连；重启共享生效",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+            afterSave()
+        }
+        addEntry(
+            R.drawable.ic_shield, "阻断客户端 IPv6",
+            if (p.blockIpv6) "已开启：客户端 IPv6 被丢弃，避免绕过代理"
+            else "已关闭：客户端 IPv6 直连（可能绕过代理）"
+        ) {
+            val next = !p.blockIpv6
+            Prefs.save(this, p.copy(blockIpv6 = next))
+            android.widget.Toast.makeText(
+                this,
+                if (next) "客户端 IPv6 会被阻断；重启共享生效" else "客户端 IPv6 将直连；重启共享生效",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+            afterSave()
+        }
+        addEntry(
             R.drawable.ic_connections, "流量嗅探",
-            if (p.sniffEnable) "已开启（提升分流准确率）" else "未开启"
+            if (p.sniffEnable) "已开启：用我们的嗅探配置覆盖订阅自带的"
+            else "未开启：保留订阅自带的嗅探配置"
         ) { sniffDialog() }
 
         // ---- 配置类：设完长期不变 ----
         addSectionHeader("运行")
-        addEntry(R.drawable.ic_shield, "运行模式", when (p.mode) { "global" -> "全局：全部走代理"; "direct" -> "直连：全部不走代理"; else -> "规则：按规则分流" }) { modeDialog() }
+        addEntry(R.drawable.ic_shield, "运行模式", when (p.mode) {
+            "global" -> "全局：全部走代理（含热点客户端，忽略所有规则）"
+            "direct" -> "直连：全部不走代理"
+            else -> "规则：按规则分流"
+        }) { modeDialog() }
         addEntry(R.drawable.ic_logs, "日志级别", p.logLevel + "（内核日志的详细程度）") { logLevelDialog() }
         addEntry(R.drawable.ic_settings, "监听端口", "混合 " + p.mixedPort + " · redir " + p.redirPort + " · tproxy " + p.tproxyPort + " · DNS " + p.dnsPort) { portDialog() }
         addEntry(R.drawable.ic_shield, "代理认证", if (p.authentication.isBlank()) "未设置（局域网内谁都能用）" else p.authentication.split("\n").size.toString() + " 组账号") { authDialog() }
@@ -155,7 +202,8 @@ class NetworkActivity : BaseListActivity() {
 
     private fun modeDialog() {
         val p = Prefs.load(this)
-        val opts = arrayOf("规则（按分流规则）", "全局（全部走代理）", "直连（全部不走代理）")
+        // 全局/直连是**内核级**开关，热点客户端（电脑）一起吃 —— 标签里必须写明，否则用户以为只影响手机
+        val opts = arrayOf("规则（按分流规则，推荐）", "全局（全部走代理，含电脑）", "直连（全部不走代理，含电脑）")
         val cur = when (p.mode) { "global" -> 1; "direct" -> 2; else -> 0 }
         AlertDialog.Builder(this)
             .setTitle("运行模式")

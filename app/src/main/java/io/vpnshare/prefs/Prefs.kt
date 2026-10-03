@@ -53,6 +53,10 @@ object Prefs {
          */
         val userAgent: String = "ClashMetaForAndroid/2.11.35",
         val ruleActions: Map<String, RuleAction> = RuleCatalog.DEFAULT_ACTIONS,
+        /**
+         * 旧字段：已并入「自定义规则」（见 ProfileRunner.migrateLegacyDirectDomains）。
+         * 只为读旧数据保留，界面与配置生成都不再直接用它。
+         */
         val customDirectDomains: List<String> = emptyList(),
 
         /** 用户自定义规则（每行一条，内核原生语法，见 profile/CustomRule.kt）。存原文，构建时再校验 */
@@ -159,7 +163,6 @@ object Prefs {
         val dnsFakeIpFilter: String = "*.lan\n+.local\n*.localdomain\nlocalhost.ptlogin2.qq.com",
         val dnsHijackAny: Boolean = true,
         val dnsUseHosts: Boolean = true,
-        val dnsForceMapping: Boolean = false,
 
         // ===================== 应用分流（tun 模式生效）=====================
         /** off | whitelist | blacklist */
@@ -267,7 +270,6 @@ object Prefs {
             dnsFakeIpFilter = p.getString("dnsFakeFilter", "*.lan\n+.local\n*.localdomain") ?: "",
             dnsHijackAny = p.getBoolean("dnsHijack", true),
             dnsUseHosts = p.getBoolean("dnsHosts", true),
-            dnsForceMapping = p.getBoolean("dnsForceMap", false),
             appSplitMode = p.getString("splitMode", "off") ?: "off",
             appSplitPackages = p.getString("splitPkgs", "") ?: "",
             sniffEnable = p.getBoolean("sniff", false),
@@ -357,7 +359,6 @@ object Prefs {
             .putString("dnsFakeFilter", d.dnsFakeIpFilter)
             .putBoolean("dnsHijack", d.dnsHijackAny)
             .putBoolean("dnsHosts", d.dnsUseHosts)
-            .putBoolean("dnsForceMap", d.dnsForceMapping)
             .putString("splitMode", d.appSplitMode)
             .putString("splitPkgs", d.appSplitPackages)
             .putBoolean("sniff", d.sniffEnable)

@@ -89,6 +89,26 @@ object CustomRule {
         return Result(lines, errors)
     }
 
+    /**
+     * 把「直连域名」并入自定义规则文本。
+     *
+     * 简写一条域名会被 parse 补成 DOMAIN-SUFFIX,<域名>,DIRECT —— 与旧「直连域名」生成的规则**完全一致**，
+     * 所以直接追加域名本身即可（可读性也最好）。已存在同名规则时跳过，因此可以安全地反复调用。
+     */
+    fun mergeDirectDomains(existingText: String, domains: List<String>): String {
+        val lines = parseAll(existingText).lines.toMutableList()
+        val seen = lines.map { it.lowercase() }.toMutableSet()
+        for (raw in domains) {
+            val d = raw.trim().removePrefix("+.").removePrefix(".").lowercase()
+            if (d.isEmpty() || d.any { it.isWhitespace() }) continue
+            val line = "DOMAIN-SUFFIX," + d + ",DIRECT"
+            // 去重要按小写比：seen 里存的是已有规则的小写形式，
+            // 而 line 是混合大小写（DOMAIN-SUFFIX/DIRECT），直接 add 会比不中、产生重复规则
+            if (seen.add(line.lowercase())) lines.add(line)
+        }
+        return lines.joinToString("\n")
+    }
+
     /** 内置分类的追加域名。存储格式：每行「分类key=域名1;域名2」 */
     fun parseExtraDomains(text: String): Map<String, List<String>> {
         val out = LinkedHashMap<String, MutableList<String>>()

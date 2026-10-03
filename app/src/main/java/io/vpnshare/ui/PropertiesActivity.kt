@@ -147,9 +147,6 @@ class PropertiesActivity : BaseListActivity() {
         val okN = perms.count { it.granted }
         addDetail("已就绪", okN.toString() + " / " + perms.size, perms.filterNot { it.granted }.joinToString("、") { it.title })
         row("权限", okN.toString() + "/" + perms.size)
-        addEntry(R.drawable.ic_shield, "打开权限检查", "逐项处理并用系统授权框修复") {
-            startActivity(android.content.Intent(this, PermissionActivity::class.java))
-        }
 
         addSectionHeader("导出")
         addButton("复制全部属性") {

@@ -27,6 +27,34 @@ class CustomRuleTest {
     }
 
     @Test
+    fun mergeDirectDomainsAppendsAsDirectRules() {
+        // 「直连域名」并入自定义规则：产物必须与手写 DOMAIN-SUFFIX,x,DIRECT 完全一致
+        val merged = CustomRule.mergeDirectDomains("DOMAIN-KEYWORD,github,PROXY", listOf("example.com", "+.foo.cn"))
+        val lines = merged.split("\n")
+        assertEquals(3, lines.size)
+        assertEquals("DOMAIN-KEYWORD,github,PROXY", lines[0])
+        assertEquals("DOMAIN-SUFFIX,example.com,DIRECT", lines[1])
+        assertEquals("DOMAIN-SUFFIX,foo.cn,DIRECT", lines[2])
+    }
+
+    @Test
+    fun mergeDirectDomainsIsIdempotent() {
+        // 与手写规则重复、或迁移跑两次，都不能产生第二条
+        val once = CustomRule.mergeDirectDomains("DOMAIN-SUFFIX,example.com,DIRECT", listOf("example.com"))
+        assertEquals(1, once.split("\n").size)
+        val twice = CustomRule.mergeDirectDomains(once, listOf("Example.COM"))
+        assertEquals(1, twice.split("\n").size)
+    }
+
+    @Test
+    fun mergeDirectDomainsSkipsJunk() {
+        val merged = CustomRule.mergeDirectDomains("", listOf("  ", "bad domain", "ok.com"))
+        val lines = merged.split("\n").filter { it.isNotEmpty() }
+        assertEquals(1, lines.size)
+        assertEquals("DOMAIN-SUFFIX,ok.com,DIRECT", lines[0])
+    }
+
+    @Test
     fun actionDefaultsToDirect() {
         assertEquals("GEOSITE,netflix,DIRECT", CustomRule.parse("GEOSITE,netflix").line)
     }

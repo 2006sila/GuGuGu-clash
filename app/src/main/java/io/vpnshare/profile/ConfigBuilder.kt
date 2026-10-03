@@ -494,9 +494,10 @@ object ConfigBuilder {
         replaceBlockInPlace(L, "tun", tunBlock(opts))
         if (o.sniffEnable) {
             replaceBlockInPlace(L, "sniffer", snifferBlock(o))
-        } else {
-            removeTopBlockInPlace(L, "sniffer")
         }
+        // 关着就**不动**订阅自带的 sniffer 段。早前这里是 removeTopBlockInPlace：用户什么都没做，
+        // 只是切到采纳模式，就把机场配好的嗅探整段删掉（功能少了还不报错）。
+        // 想彻底接管嗅探，就在「流量嗅探」对话框里打开开关 —— 那时用我们生成的配置覆盖它。
         replaceBlockInPlace(L, "external-controller-cors", corsBlockInPlace(o))
         if (o.authentication.isNotEmpty()) {
             replaceBlockInPlace(L, "authentication", "authentication:\n" +

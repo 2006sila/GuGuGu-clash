@@ -38,6 +38,33 @@ rules:
     - MATCH,♻️ 手动切换
 """.trimIndent()
 
+    /** 带 sniffer 段的订阅：用来钉住「关了我们的嗅探也不能删订阅的」 */
+    private val subWithSniffer = sub + "\n" + """
+sniffer:
+    enable: true
+    force-dns-mapping: true
+    skip-domain:
+        - "+.airport-marker.example"
+""".trimIndent()
+
+    @Test
+    fun adoptedConfigKeepsAirportSnifferWhenOursIsOff() {
+        // 早前这里是 removeTopBlockInPlace：用户什么都没做，只是切到采纳模式，
+        // 机场配好的嗅探就被整段删掉（功能少了还不报错）。
+        val out = ConfigBuilder.buildAdopted(subWithSniffer, ConfigBuilder.Options())
+        assertTrue("订阅自带的 sniffer 段被删了", out.contains("airport-marker.example"))
+    }
+
+    @Test
+    fun adoptedConfigReplacesSnifferWhenOursIsOn() {
+        val out = ConfigBuilder.buildAdopted(
+            subWithSniffer,
+            ConfigBuilder.Options(over = ConfigBuilder.OverrideOptions(sniffEnable = true))
+        )
+        assertTrue("没有写入我们的 sniffer 段", out.contains("sniffer:"))
+        assertFalse("开了我们的嗅探就应该覆盖掉订阅的配置", out.contains("airport-marker.example"))
+    }
+
     private fun adopt(secret: String = "") =
         ConfigBuilder.buildAdopted(sub, ConfigBuilder.Options(
             over = ConfigBuilder.OverrideOptions(secret = secret)

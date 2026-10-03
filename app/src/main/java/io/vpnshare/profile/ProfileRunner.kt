@@ -119,7 +119,8 @@ object ProfileRunner {
                 if (it.isNotBlank()) return it
             }
         }
-        val opts = buildOptions(p, profile?.providerFile ?: "", countDeviceRulesets() > 0, original)
+        val pd = migrateLegacyDirectDomains(ctx, p)
+        val opts = buildOptions(pd, profile?.providerFile ?: "", countDeviceRulesets() > 0, original)
         return "rules:\n" + ConfigBuilder.ruleLines(opts).joinToString("\n")
     }
 
@@ -130,12 +131,15 @@ object ProfileRunner {
         if (store.isLocked(profile)) {
             return Result(false, error = "配置已加密：请先在「配置」页输入密码解锁")
         }
+        // 旧「直连域名」并入自定义规则（幂等：只在这份数据上跑一次）
+        val p0 = migrateLegacyDirectDomains(ctx, p)
+
         var providerYaml = store.providerText(profile)
             ?: return Result(false, error = "订阅数据缺失，请重新导入")
 
         // 节点过滤与重命名。重建模式下节点在 provider 文件里、组用 use:[provider] 引用，
         // 改名不会破坏任何引用；采纳模式的引用同步在下面单独处理。
-        val nodeRules = NodeTransform.parseRules(p.nodeInclude, p.nodeExclude, p.nodeRenameRules)
+        val nodeRules = NodeTransform.parseRules(p0.nodeInclude, p0.nodeExclude, p0.nodeRenameRules)
         if (!nodeRules.isEmpty) {
             val tr = NodeTransform.applyToProxiesBlock(providerYaml, nodeRules)
             if (tr.error != null) return Result(false, error = tr.error)
@@ -161,13 +165,13 @@ object ProfileRunner {
         val template = ctx.assets.open("base.template.yaml").bufferedReader().use { it.readText() }
         val localRulesets = countDeviceRulesets() > 0
 
-        val opts = buildOptions(p, profile.providerFile, localRulesets, store.originalText(profile))
+        val opts = buildOptions(p0, profile.providerFile, localRulesets, store.originalText(profile))
         // 订阅处理方式（对齐 CMFA 的取舍）：
         //   adopt   = 订阅原文打补丁，保留它自带的策略组与规则
         //   rebuild = 只取节点，用我们内置的策略组与规则
         val rawSub = store.originalText(profile)
-        val adopt = p.profileMode == "adopt" && rawSub != null && ConfigBuilder.looksLikeFullConfig(rawSub)
-        if (p.profileMode == "adopt" && !adopt) {
+        val adopt = p0.profileMode == "adopt" && rawSub != null && ConfigBuilder.looksLikeFullConfig(rawSub)
+        if (p0.profileMode == "adopt" && !adopt) {
             ShareState.log("订阅不是完整配置（只有节点列表），本次按重建模式处理")
         }
         val config = if (adopt) {
@@ -225,6 +229,25 @@ object ProfileRunner {
             return Result(false, error = "订阅里没有解析出任何节点，请重新导入或更换 UA", tested = true)
         }
         return Result(true, tested = !flagUnsupported, nodeCount = nodes)
+    }
+
+    /**
+     * 一次性迁移：把旧的「直连域名」并入「自定义规则」。
+     *
+     * 两者最终生成的是同一条 DOMAIN-SUFFIX,<域名>,DIRECT（见 ConfigBuilder.ruleLines），
+     * 留两个入口只会让人困惑（在「直连域名」加过 A 站，又在自定义规则里加同一条，会生效两次吗？）。
+     * 迁完清空旧字段，之后每次调用直接返回 —— 幂等。
+     */
+    private fun migrateLegacyDirectDomains(ctx: Context, p: Prefs.Data): Prefs.Data {
+        val legacy = p.customDirectDomains.map { it.trim() }.filter { it.isNotEmpty() }
+        if (legacy.isEmpty()) return p
+        val merged = p.copy(
+            customRules = CustomRule.mergeDirectDomains(p.customRules, legacy),
+            customDirectDomains = emptyList()
+        )
+        Prefs.save(ctx, merged)
+        ShareState.log("已把 " + legacy.size + " 个「直连域名」并入自定义规则（原本就是同一条规则）")
+        return merged
     }
 
     /** 逗号或换行分隔都接受：端口写 80,8080-8880，DNS 写一行一个，两种习惯都不用改 */

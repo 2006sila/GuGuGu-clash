@@ -388,6 +388,20 @@ class ShareService : Service() {
                             ShareState.log("总控组「" + g + "」当前节点「" + r.node + "」存活（可用 " + r.available + " 个），未改动")
                     }
                 }
+                // 全局模式：rules 全被忽略，一切交给内核自带的 GLOBAL 组。
+                // 它把 DIRECT/REJECT 也算进候选，默认常常停在「直连」—— 于是「全局」变成「全部直连」，
+                // 手机和电脑的谷歌都打不开（实测踩过）。这里补一次兜底：只在当前不是可用真节点时才动。
+                if (Prefs.load(applicationContext).mode == "global") {
+                    val rg = io.vpnshare.core.CoreApi.ensureAliveNode("GLOBAL")
+                    ShareState.log(
+                        when {
+                            rg == null -> "WARN 全局模式：GLOBAL 组不可用，建议切回「规则」模式"
+                            !rg.measured -> "全局模式：GLOBAL 测速未取到数据，保持当前选择「" + rg.node + "」"
+                            rg.switched -> "全局模式：GLOBAL 原本不是可用节点，已切到「" + rg.node + "」（可用 " + rg.available + " 个）"
+                            else -> "全局模式：GLOBAL 当前节点「" + rg.node + "」存活（可用 " + rg.available + " 个）"
+                        }
+                    )
+                }
             }   // 关闭 work.execute（原 runCatching 已随本次重写移除）
         } catch (e: Exception) {
             fail(e.message ?: e.toString())
