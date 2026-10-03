@@ -519,7 +519,94 @@ object ConfigBuilder {
         }
         insertBeforeRulesInPlace(L, scalars)
 
+        // 4) 用户规则：采纳模式也必须生效（详见 injectUserRulesInPlace 的说明）
+        injectUserRulesInPlace(L, opts, subscriptionYaml)
+
         return L.joinToString("\n")
+    }
+
+    /**
+     * 把用户自己的规则插到订阅自带 rules 的**最前面**（用户意图优先级最高，与重建模式一致）。
+     *
+     * 早前采纳模式完全不注入用户规则：界面上「内置分类走法 / 自定义规则 / 给分类追加域名」都能编辑，
+     * 但生成出来的配置里一条都没有（真机实测：给「哔哩哔哩」追加的域名没出现在 config.yaml 里）。
+     *
+     * 两个细节：
+     *  · 缩进沿用订阅自己的写法（机场多用 4 空格），否则 YAML 直接解析失败；
+     *  · 「走代理」要落到订阅真实存在的组上（取它自己 rules 里 MATCH 后面的组名），
+     *    否则内核会因为「组不存在」拒绝加载整份配置 —— 那比规则不生效更糟。
+     */
+    private fun injectUserRulesInPlace(L: MutableList<String>, opts: Options, subscriptionYaml: String) {
+        val target = adoptedProxyTarget(subscriptionYaml)
+        val prelude = if (target == null) {
+            // 找不到可用的组名时，宁可不注入「走代理」规则，也不能让整份配置起不来
+            userRuleLines(opts).filterNot { it.split(",").getOrNull(2)?.trim()?.uppercase() == "PROXY" }
+        } else {
+            userRuleLines(opts, target)
+        }
+        if (prelude.isEmpty()) return
+
+        val ri = L.indexOfFirst { it.trim() == "rules:" }
+        if (ri < 0) return
+
+        var indent = "  "
+        for (i in ri + 1 until L.size) {
+            val l = L[i]
+            if (l.isBlank()) continue
+            if (l.trimStart().startsWith("- ")) { indent = l.substring(0, l.indexOf("- ")); break }
+            if (l.firstOrNull() != ' ' && l.firstOrNull() != '\t') break   // 已经到下一个顶层键
+        }
+        val lines = prelude.map { indent + "- " + it }
+        L.addAll(ri + 1, lines)
+    }
+
+    /** 用户自己的规则行（不含缩进与列表符号） */
+    fun userRuleLines(opts: Options, proxyTarget: String = "PROXY"): List<String> {
+        val out = mutableListOf<String>()
+        for (r in opts.customRules) out += retarget(r, proxyTarget)
+        for (d in opts.customDirectDomains.map { it.trim() }.filter { it.isNotEmpty() }) {
+            out += "DOMAIN-SUFFIX," + d.removePrefix("+.").removePrefix(".") + ",DIRECT"
+        }
+        for (cat in RuleCatalog.ALL) {
+            val action = opts.enabled[cat.key] ?: continue
+            val target = if (action == RuleAction.PROXY) proxyTarget else action.name
+            for (d in opts.extraDomains[cat.key].orEmpty()) out += "DOMAIN-SUFFIX," + d + "," + target
+        }
+        return out
+    }
+
+    /** 把规则里的 PROXY 动作换成实际存在的组名（其它动作原样） */
+    private fun retarget(rule: String, proxyTarget: String): String {
+        if (proxyTarget == "PROXY") return rule
+        val parts = rule.split(",").map { it.trim() }.toMutableList()
+        if (parts.size >= 3 && parts[2].uppercase() == "PROXY") parts[2] = proxyTarget
+        return parts.joinToString(",")
+    }
+
+    /**
+     * 采纳模式下「走代理」该指向谁：订阅自带 rules 里 MATCH 后面的那个组名（机场都把总控组写在那儿），
+     * 退一步取 proxy-groups 里的第一个组名；都找不到返回 null。
+     */
+    fun adoptedProxyTarget(subscriptionYaml: String?): String? {
+        if (subscriptionYaml.isNullOrBlank()) return null
+        extractTopLevelBlock(subscriptionYaml, "rules")?.let { block ->
+            for (raw in block.lines().drop(1)) {
+                val l = raw.trim().removePrefix("-").trim()
+                if (l.startsWith("MATCH,")) {
+                    val name = l.substringAfter("MATCH,").trim().trim('\'', '"')
+                    if (name.isNotEmpty()) return name
+                }
+            }
+        }
+        extractTopLevelBlock(subscriptionYaml, "proxy-groups")?.let { block ->
+            for (raw in block.lines().drop(1)) {
+                val l = raw.trim()
+                if (!l.startsWith("- ")) continue
+                val name = Regex("name:\\s*'?\"?([^'\"\\n,}]+)").find(l)?.groupValues?.get(1)?.trim()
+                if (!name.isNullOrEmpty()) return name
+            }
+        }
+        return null
     }
 
     /**

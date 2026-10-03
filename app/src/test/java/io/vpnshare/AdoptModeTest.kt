@@ -65,6 +65,45 @@ sniffer:
         assertFalse("开了我们的嗅探就应该覆盖掉订阅的配置", out.contains("airport-marker.example"))
     }
 
+    @Test
+    fun adoptedConfigInjectsUserRulesAtTopOfRulesBlock() {
+        // 采纳模式早前**完全不注入**用户规则：界面能编辑、生成的配置里一条都没有（真机实测踩到）
+        val out = ConfigBuilder.buildAdopted(
+            sub,
+            ConfigBuilder.Options(
+                customRules = listOf("DOMAIN-SUFFIX,mine.example,PROXY"),
+                enabled = mapOf("bilibili" to io.vpnshare.profile.RuleAction.DIRECT),
+                extraDomains = mapOf("bilibili" to listOf("intl.example")),
+                subscriptionYaml = sub
+            )
+        )
+        // 「走代理」被换成订阅里真实存在的组名（其 rules 里 MATCH 后面那个），否则内核会拒绝加载
+        assertTrue("PROXY 没有换成订阅的组名", out.contains("DOMAIN-SUFFIX,mine.example,♻️ 手动切换"))
+        assertTrue("追加域名没进配置", out.contains("DOMAIN-SUFFIX,intl.example,DIRECT"))
+        val lines = out.lines()
+        val ri = lines.indexOfFirst { it.trim() == "rules:" }
+        assertTrue("找不到 rules 块", ri >= 0)
+        // 缩进沿用订阅自己的 4 空格，且插在最前面
+        assertEquals("    - DOMAIN-SUFFIX,mine.example,♻️ 手动切换", lines[ri + 1])
+        assertEquals("    - DOMAIN-SUFFIX,intl.example,DIRECT", lines[ri + 2])
+        // 订阅自己的兜底 MATCH 必须排在我们注入的规则之后，否则我们的规则永远不可达
+        // （注意：不能用「最后一行」判断 —— 受控段是追加在末尾的，YAML 顶层键顺序无所谓）
+        val idxMatch = lines.indexOfFirst { it.contains("MATCH,♻️ 手动切换") }
+        val idxMine = lines.indexOfFirst { it.contains("DOMAIN-SUFFIX,mine.example") }
+        assertTrue("兜底 MATCH 丢失", idxMatch >= 0)
+        assertTrue("兜底 MATCH 排到了注入规则前面", idxMatch > idxMine)
+    }
+
+    @Test
+    fun adoptedProxyTargetFallsBackToFirstGroup() {
+        assertEquals(
+            "♻️ 手动切换",
+            ConfigBuilder.adoptedProxyTarget("proxy-groups:\n    - { name: '♻️ 手动切换', type: select, proxies: ['x'] }\n")
+        )
+        assertEquals(null, ConfigBuilder.adoptedProxyTarget(null))
+        assertEquals(null, ConfigBuilder.adoptedProxyTarget("proxies:\n    - { name: a, type: ss }"))
+    }
+
     private fun adopt(secret: String = "") =
         ConfigBuilder.buildAdopted(sub, ConfigBuilder.Options(
             over = ConfigBuilder.OverrideOptions(secret = secret)
