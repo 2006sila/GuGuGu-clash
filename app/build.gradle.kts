@@ -17,6 +17,9 @@ val keystoreProps = Properties().apply {
 val releaseStoreFile = keystoreProps.getProperty("storeFile")
 val hasReleaseSigning = !releaseStoreFile.isNullOrBlank() && file(releaseStoreFile).exists()
 
+// 版本号只在这里写一次：产物名也要用（见文件末尾的 androidComponents）
+val appVersionName = "1.0.2"
+
 android {
     namespace = "io.vpnshare"
     compileSdk = 34
@@ -26,7 +29,7 @@ android {
         minSdk = 24
         targetSdk = 34
         versionCode = 3
-        versionName = "1.0.2"
+        versionName = appVersionName
     }
 
     // 用 flavor 而不是 splits：ABI splits 只拆 .so，不拆 assets，
@@ -92,6 +95,23 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
     packaging { resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" } }
+}
+
+// 产物名：GuGuGu-clash-<版本>-<flavor>-<buildType>.apk
+// 默认名是 app-<flavor>-<buildType>.apk，认不出是哪个项目（沿用了旧仓库名的时代），
+// 发布页上容易和其它项目混在一起 —— 这里统一改成仓库名。
+// 注：AGP 8.5 的公开 Variant API（androidComponents/VariantOutput）**没有**改产物名的入口
+// （VariantOutput 上没有 outputFileName），所以只能用这个沿用多年的内部实现类。
+// 将来升级 AGP 若这里编译不过，就是它被移走了，替换成新 API 即可。
+android {
+    applicationVariants.all {
+        val flavor = flavorName
+        val type = buildType.name
+        outputs.all {
+            (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl).outputFileName =
+                "GuGuGu-clash-" + appVersionName + "-" + flavor + "-" + type + ".apk"
+        }
+    }
 }
 
 dependencies {

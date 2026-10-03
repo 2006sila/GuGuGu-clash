@@ -4,7 +4,7 @@
 <img src="docs/02-nodes.png" width="240" alt="节点">
 <img src="docs/03-connections.png" width="240" alt="连接">
 
-# VpnShare · 咕咕咕clash
+# GuGuGu-clash · 咕咕咕clash
 
 **把手机的 Clash 代理共享给热点客户端。**
 
@@ -173,8 +173,8 @@ Android 13+ 的通知是运行时权限。进「诊断 → 权限检查」，确
 ## 从源码构建
 
 ```bash
-git clone https://github.com/2006sila/guguguclash.git
-cd guguguclash
+git clone https://github.com/2006sila/GuGuGu-clash.git
+cd GuGuGu-clash
 ```
 
 ### 准备资产
@@ -199,8 +199,14 @@ powershell -File scripts/verify-assets.ps1   # 校验与 asset-checksums.txt 是
 # armv7 发布包
 ./gradlew :app:assembleArmv7Release
 
-# 跑单元测试（128 个）
+# 跑单元测试（210 个）
 ./gradlew :app:testArm64DebugUnitTest
+```
+
+产物名统一为 GuGuGu-clash-<版本>-<abi>-<buildType>.apk，例如：
+
+```
+app/build/outputs/apk/arm64/release/GuGuGu-clash-1.0.2-arm64-release.apk
 ```
 
 > 用 flavor 而不是 ABI splits：splits 只拆 `.so`，**不拆 assets**，
