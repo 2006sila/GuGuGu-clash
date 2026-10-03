@@ -120,12 +120,7 @@ object CoreApi {
         return out
     }
 
-    fun testGroupDelay(group: String, url: String = "https://www.gstatic.com/generate_204", timeoutMs: Int = 5000): Int {
-        val raw = get("/group/" + encode(group) + "/delay?timeout=" + timeoutMs + "&url=" + encode(url)) ?: return -1
-        return runCatching { JSONObject(raw).optInt("delay", -1) }.getOrDefault(-1)
-    }
-
-    data class Conn(
+        data class Conn(
         val id: String,
         val host: String,
         val rule: String,
@@ -176,10 +171,6 @@ object CoreApi {
         "Direct", "Reject", "Compatible", "Pass", "Dns",
         "Selector", "URLTest", "Fallback", "LoadBalance", "Relay"
     )
-
-    /** 总控组当前选中的名字（可能是 DIRECT / REJECT / 空 / 组名） */
-    fun selectedNow(group: String): String =
-        groups().firstOrNull { it.name == group }?.now ?: ""
 
     /**
      * 活性检查结果。

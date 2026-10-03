@@ -115,14 +115,6 @@ class RuleScriptTest {
         }
     }
 
-    @Test
-    fun previewListsOrderedCommands() {
-        val cmds = RuleBuilder.previewCommands(RuleBuilder.TetherConfig(proxyUdp = true, blockIpv6 = true))
-        val firstRedirect = cmds.indexOfFirst { it.contains("REDIRECT --to-ports 7892") }
-        assertTrue(firstRedirect > 0)
-        assertTrue(cmds.any { it.contains("ip rule add fwmark 2025 lookup 100") })
-        assertTrue(cmds.any { it.contains("ip route add local 0.0.0.0/0 dev lo table 100") })
-    }
 
     @Test
     fun watcherRestartsItselfByScriptPathAndOwnsItsPid() {

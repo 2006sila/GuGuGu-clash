@@ -43,11 +43,5 @@ object RootShell {
         }
     }
 
-    fun runScript(vararg lines: String, timeoutSec: Long = 40): Result =
-        run(lines.joinToString("\n"), timeoutSec)
-
     fun isRooted(): Boolean = run("id").out.contains("uid=0")
-
-    /** 取 su 实现标识，仅用于日志与排障 */
-    fun suVendor(): String = run("su -v 2>/dev/null || echo unknown").out.trim()
 }

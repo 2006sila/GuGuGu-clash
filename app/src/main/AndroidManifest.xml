@@ -54,7 +54,6 @@
         <activity android:name=".ui.NetworkActivity" android:exported="false" />
         <activity android:name=".ui.DiagnoseActivity" android:exported="false" />
         <activity android:name=".ui.BootstrapActivity" android:exported="false" />
-        <activity android:name=".ui.TrafficActivity" android:exported="false" android:theme="@style/Theme.VpnShare" />
         <activity android:name=".ui.RuleMatchActivity" android:exported="false" />
         <activity android:name=".ui.PropertiesActivity" android:exported="false" />
         <activity android:name=".ui.PermissionActivity" android:exported="false" />

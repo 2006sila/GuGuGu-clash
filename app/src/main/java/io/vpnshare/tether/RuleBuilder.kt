@@ -60,23 +60,4 @@ object RuleBuilder {
     fun assemble(scriptAsset: String, cfg: TetherConfig, action: String): String =
         env(cfg, action) + scriptAsset
 
-    /** UI 预览用：把脚本实际会执行的命令列出来 */
-    fun previewCommands(cfg: TetherConfig): List<String> {
-        val out = mutableListOf<String>()
-        out += "iptables -t nat -N " + CHAIN_NAT
-        out += "iptables -t nat -F " + CHAIN_NAT
-        // DNS 劫持排在放行之前：客户端解析打的是热点网关，网关在私网放行表里
-        out += "iptables -t nat -A " + CHAIN_NAT + " -p udp --dport 53 -j REDIRECT --to-ports " + cfg.dnsPort
-        out += "iptables -t nat -A " + CHAIN_NAT + " -p tcp --dport 53 -j REDIRECT --to-ports " + cfg.dnsPort
-        for (n in PRIVATE_NETS) out += "iptables -t nat -A " + CHAIN_NAT + " -d " + n + " -j RETURN"
-        out += "iptables -t nat -A " + CHAIN_NAT + " -p tcp -j REDIRECT --to-ports " + cfg.redirPort
-        out += "iptables -t nat -I PREROUTING -i <iface> -j " + CHAIN_NAT
-        if (cfg.proxyUdp) {
-            out += "iptables -t mangle -A " + CHAIN_MANGLE + " -p udp -j TPROXY --on-port " + cfg.tproxyPort + " --tproxy-mark " + FWMARK
-            out += "ip rule add fwmark " + FWMARK + " lookup " + TABLE_ID
-            out += "ip route add local 0.0.0.0/0 dev lo table " + TABLE_ID
-        }
-        if (cfg.blockIpv6) out += "ip6tables -I FORWARD -i <iface> -j DROP"
-        return out
     }
-}

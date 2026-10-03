@@ -22,6 +22,4 @@ object TetherOffload {
 
     fun setDisabled(disabled: Boolean): RootShell.Result =
         RootShell.run("settings put global " + KEY + " " + (if (disabled) 1 else 0) + " && echo ok")
-
-    fun isDisabled(): Boolean = current() == 1
 }

@@ -28,7 +28,5 @@ object RuleCatalog {
         RuleCategory("cn", "中国大陆", "cn", 5069, RuleAction.DIRECT, null, alsoGeoIpCn = false)
     )
 
-    fun byKey(key: String): RuleCategory? = ALL.firstOrNull { it.key == key }
-
-    val DEFAULT_ACTIONS: Map<String, RuleAction> = ALL.associate { it.key to it.defaultAction }
+        val DEFAULT_ACTIONS: Map<String, RuleAction> = ALL.associate { it.key to it.defaultAction }
 }

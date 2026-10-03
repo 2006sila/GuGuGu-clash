@@ -1,6 +1,5 @@
 package io.vpnshare.service
 
-import java.util.concurrent.CopyOnWriteArrayList
 
 /** 进程内共享状态：服务写，UI / 磁贴读。 */
 object ShareState {
@@ -63,11 +62,8 @@ object ShareState {
         }
     }
 
-    fun clearHistory() = synchronized(history) { history.clear() }
-
     private const val MAX_LOG = 400
     private val logs = ArrayDeque<String>()
-    private val listeners = CopyOnWriteArrayList<(String) -> Unit>()
 
     val running: Boolean
         get() = phase == Phase.RUNNING || phase == Phase.DEGRADED
@@ -91,14 +87,8 @@ object ShareState {
             logs.addLast(line)
             while (logs.size > MAX_LOG) logs.removeFirst()
         }
-        for (l in listeners) runCatching { l(line) }
     }
 
     fun recent(n: Int = 200): List<String> = synchronized(logs) { logs.toList().takeLast(n) }
 
-    fun clearLog() = synchronized(logs) { logs.clear() }
-
-    fun addListener(l: (String) -> Unit) { listeners.add(l) }
-
-    fun removeListener(l: (String) -> Unit) { listeners.remove(l) }
 }

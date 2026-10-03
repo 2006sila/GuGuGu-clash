@@ -43,7 +43,6 @@ object CoreManager {
      */
     const val FILE_GROUP_GID = 2000
     private var proc: Process? = null
-    private val ring = ArrayDeque<String>()
     private var logFile: File? = null
 
     /** 内核 stdout/stderr 同时落盘，便于 adb 取证 */
@@ -163,10 +162,6 @@ object CoreManager {
                         android.util.Log.i("VpnShare", "core[" + tag + "] " + line)
                     }
                     val text = if (tag == "ERR") "[stderr] " + line else line
-                    synchronized(lock) {
-                        ring.addLast(text)
-                        while (ring.size > 800) ring.removeFirst()
-                    }
                     appendToFile(text)
                     onLog(text)
                 }
@@ -211,14 +206,11 @@ object CoreManager {
             }
             proc = null
             adopted = false
-            ring.clear()
         }
         return r
     }
 
-    fun recentLog(lines: Int = 200): List<String> = synchronized(lock) { ring.toList().takeLast(lines) }
-
-    fun pid(): String = RootShell.run("pidof mihomo 2>/dev/null || pgrep -f vpnshare/bin/mihomo 2>/dev/null").out.trim()
+        fun pid(): String = RootShell.run("pidof mihomo 2>/dev/null || pgrep -f vpnshare/bin/mihomo 2>/dev/null").out.trim()
     // 出口探测只有一份实现：CoreApi.probeEgress（走内核 REST 的三级降级）。
     // 这里曾经有个同名同参的 curl 版本，没人调用且极易改错对象，已删除。
 }

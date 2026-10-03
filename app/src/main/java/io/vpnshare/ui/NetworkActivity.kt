@@ -208,8 +208,27 @@ class NetworkActivity : BaseListActivity() {
         AlertDialog.Builder(this)
             .setTitle("运行模式")
             .setSingleChoiceItems(opts, cur) { d, which ->
-                Prefs.save(this, Prefs.load(this).copy(mode = when (which) { 1 -> "global"; 2 -> "direct"; else -> "rule" }))
-                d.dismiss(); afterSave()
+                val mode = when (which) { 1 -> "global"; 2 -> "direct"; else -> "rule" }
+                Prefs.save(this, Prefs.load(this).copy(mode = mode))
+                d.dismiss()
+                // 内核支持运行时切模式（PATCH /configs）：服务在跑就立刻生效，不必重启共享。
+                // 切到全局时顺手给 GLOBAL 组兜一次节点 —— 它默认可能停在「直连」，那样全局就变成全直连。
+                if (io.vpnshare.service.ShareState.running) {
+                    Thread {
+                        val ok = io.vpnshare.core.CoreApi.patchMode(mode)
+                        if (ok && mode == "global") io.vpnshare.core.CoreApi.ensureAliveNode("GLOBAL")
+                        runOnUiThread {
+                            android.widget.Toast.makeText(
+                                this,
+                                if (ok) "已立即切换：" + opts[which] else "切换失败，重启共享后生效",
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
+                            afterSave()
+                        }
+                    }.start()
+                } else {
+                    afterSave()
+                }
             }
             .setNegativeButton(R.string.action_cancel, null)
             .show()

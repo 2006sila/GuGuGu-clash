@@ -11,18 +11,18 @@ class RuleCatalogTest {
 
     @Test
     fun entryCountsMatchMetaRulesDat() {
-        assertEquals(53, RuleCatalog.byKey("bilibili")!!.entries)
-        assertEquals(910, RuleCatalog.byKey("ads")!!.entries)
-        assertEquals(130, RuleCatalog.byKey("private")!!.entries)
-        assertEquals(5069, RuleCatalog.byKey("cn")!!.entries)
+        assertEquals(53, RuleCatalog.ALL.first { it.key == "bilibili" }.entries)
+        assertEquals(910, RuleCatalog.ALL.first { it.key == "ads" }.entries)
+        assertEquals(130, RuleCatalog.ALL.first { it.key == "private" }.entries)
+        assertEquals(5069, RuleCatalog.ALL.first { it.key == "cn" }.entries)
     }
 
     @Test
     fun defaultActionsAreSane() {
-        assertEquals(RuleAction.DIRECT, RuleCatalog.byKey("bilibili")!!.defaultAction)
-        assertEquals(RuleAction.DIRECT, RuleCatalog.byKey("cn")!!.defaultAction)
-        assertEquals(RuleAction.REJECT, RuleCatalog.byKey("ads")!!.defaultAction)
-        assertEquals(RuleAction.DIRECT, RuleCatalog.byKey("private")!!.defaultAction)
+        assertEquals(RuleAction.DIRECT, RuleCatalog.ALL.first { it.key == "bilibili" }.defaultAction)
+        assertEquals(RuleAction.DIRECT, RuleCatalog.ALL.first { it.key == "cn" }.defaultAction)
+        assertEquals(RuleAction.REJECT, RuleCatalog.ALL.first { it.key == "ads" }.defaultAction)
+        assertEquals(RuleAction.DIRECT, RuleCatalog.ALL.first { it.key == "private" }.defaultAction)
     }
 
     @Test

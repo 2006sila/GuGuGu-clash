@@ -16,13 +16,14 @@ import io.vpnshare.prefs.Prefs
 import io.vpnshare.profile.CustomRule
 import io.vpnshare.profile.RuleAction
 import io.vpnshare.profile.RuleCatalog
+import io.vpnshare.profile.RuleCategory
 import io.vpnshare.service.ShareState
 
 /**
  * 规则页。一个页面管完所有规则，两份能力合并：
  *  · 内置分类：点一下循环切换 直连 → 走代理 → 拦截 → 关闭
  *  · 自定义规则：只需填「域名 / IP 段 / 关键字」，再选走法，匹配方式程序自动判断
- * 长按任意一行可删除自定义规则。
+ * 长按自定义规则行 = 删除；长按内置分类行 = 给该分类追加域名。
  */
 class RulesActivity : BaseListActivity() {
 
@@ -48,12 +49,16 @@ class RulesActivity : BaseListActivity() {
         addSectionHeader("内置分类")
         for (cat in RuleCatalog.ALL) {
             val action = p.ruleActions[cat.key]
-            addEntry(
+            val extra = CustomRule.parseExtraDomains(p.extraDomains)[cat.key]?.size ?: 0
+            val row = addEntry(
                 R.drawable.ic_rules,
                 cat.label,
-                "内置 " + cat.entries + " 条 · 点一下切换走法",
+                "内置 " + cat.entries + " 条 · 点一下切换走法" +
+                    (if (extra > 0) " · 另加 " + extra + " 个域名" else ""),
                 if (action == null) "已关闭" else CustomRule.actionLabel(action.name)
             ) { cycleAction(cat.key) }
+            // 长按分类 → 给它追加域名（这些域名按该分类的走法处理）
+            row.setOnLongClickListener { extraDomainsDialog(cat); true }
         }
 
         addSectionHeader("自定义规则")
@@ -76,6 +81,49 @@ class RulesActivity : BaseListActivity() {
         addEntry(R.drawable.ic_rules, "怎么填？看格式说明", "域名 / IP 段 / 关键字 / 包名，程序自动判断匹配方式") { showHelp() }
     }
 
+    /**
+     * 给某个内置分类追加域名。
+     *
+     * 存储格式是「分类key=域名1;域名2」的纯文本（见 CustomRule.parseExtraDomains），
+     * 所以这里按分类单独编辑、保存时再合并回整份文本 —— 用户不需要知道 key 叫什么。
+     * 之前这条通路只有数据侧、没有任何入口，等于功能不存在，这里把它补上。
+     */
+    private fun extraDomainsDialog(cat: RuleCategory) {
+        val p = Prefs.load(this)
+        val map = CustomRule.parseExtraDomains(p.extraDomains).toMutableMap()
+
+        val pad = (16 * resources.displayMetrics.density).toInt()
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, pad, pad, pad)
+        }
+        box.addView(TextView(this).apply {
+            text = "每行一个域名，命中即按「" + cat.label + "」的走法处理。"
+            textSize = 12f
+        })
+        val input = EditText(this).apply {
+            setText((map[cat.key] ?: emptyList()).joinToString("\n"))
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+            minLines = 4
+            gravity = android.view.Gravity.TOP or android.view.Gravity.START
+        }
+        box.addView(input)
+
+        AlertDialog.Builder(this)
+            .setTitle("追加域名 · " + cat.label)
+            .setView(ScrollView(this).apply { addView(box) })
+            .setPositiveButton(R.string.action_save) { _, _ ->
+                val list = input.text.toString().lines()
+                    .map { it.trim().removePrefix("+.").removePrefix(".") }
+                    .filter { it.isNotEmpty() && !it.any { c -> c.isWhitespace() } }
+                if (list.isEmpty()) map.remove(cat.key) else map[cat.key] = list
+                Prefs.save(this, Prefs.load(this).copy(extraDomains = CustomRule.extraDomainsText(map)))
+                render()
+            }
+            .setNegativeButton(R.string.action_cancel, null)
+            .show()
+    }
+
     private fun showHelp() {
         AlertDialog.Builder(this)
             .setTitle("怎么填")
@@ -87,6 +135,8 @@ class RulesActivity : BaseListActivity() {
                     "  com.tencent.mm   某个 App 的包名\n\n" +
                     "然后选一个走法：直连 / 走代理 / 拦截。\n\n" +
                     "匹配方式（域名后缀、IP 段、关键字…）由程序自动判断，不用你选。\n\n" +
+                    "想给某个内置分类补几个域名（例如给「哔哩哔哩」加上港澳台域名），\n" +
+                    "长按上面那个分类即可。\n\n" +
                     "进阶：直接写完整规则也行，例如\n" +
                     "  GEOSITE,netflix,PROXY\n" +
                     "  DOMAIN-KEYWORD,github,PROXY\n" +

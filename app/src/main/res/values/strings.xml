@@ -15,7 +15,6 @@
     <string name="value_offload_absent">不支持</string>
     <string name="value_offload_on">已规避</string>
     <string name="value_offload_off">未规避</string>
-    <string name="value_off">关</string>
     <string name="action_copy">复制</string>
 
     <string name="section_runtime">运行</string>
@@ -34,8 +33,6 @@
     <string name="entry_clients">已连设备</string>
     <string name="entry_profiles">订阅</string>
     <string name="sub_profiles">余量 · 更新 · 导入 · 供应商</string>
-    <string name="entry_bootstrap">内核与规则数据</string>
-
     <string name="sub_nodes">策略组、节点切换与延迟测速</string>
     <string name="sub_connections">实时连接、命中规则与出口</string>
     <string name="sub_clients">已连设备与按设备屏蔽</string>
@@ -48,11 +45,6 @@
     <string name="title_logs">日志</string>
 
     <!-- 对话框 -->
-    <string name="dlg_sub_title">导入订阅</string>
-    <string name="dlg_sub_message">支持 Clash YAML 订阅与 base64 分享链接订阅，导入后会自动合成配置并用内核自检。</string>
-    <string name="dlg_sub_hint">https://example.com/api/v1/client/subscribe?token=…</string>
-    <string name="action_import">导入</string>
-    <string name="action_update_current">更新当前订阅</string>
     <string name="action_cancel">取消</string>
     <string name="action_save">保存</string>
     <string name="action_ok">知道了</string>

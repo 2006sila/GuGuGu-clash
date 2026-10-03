@@ -27,6 +27,16 @@ class CustomRuleTest {
     }
 
     @Test
+    fun extraDomainsRoundTripUsesCatalogKeysOnly() {
+        // 规则页「长按分类 → 追加域名」靠这两个函数配对：读 parseExtraDomains / 存 extraDomainsText
+        val map = CustomRule.parseExtraDomains("bilibili=www.biliintl.com;biliintl.com\nnot-in-catalog=x.com")
+        assertEquals(listOf("www.biliintl.com", "biliintl.com"), map["bilibili"])
+        val again = CustomRule.parseExtraDomains(CustomRule.extraDomainsText(map))
+        assertEquals(listOf("www.biliintl.com", "biliintl.com"), again["bilibili"])
+        assertTrue("不在内置分类里的 key 不该写回文本", again["not-in-catalog"] == null)
+    }
+
+    @Test
     fun mergeDirectDomainsAppendsAsDirectRules() {
         // 「直连域名」并入自定义规则：产物必须与手写 DOMAIN-SUFFIX,x,DIRECT 完全一致
         val merged = CustomRule.mergeDirectDomains("DOMAIN-KEYWORD,github,PROXY", listOf("example.com", "+.foo.cn"))

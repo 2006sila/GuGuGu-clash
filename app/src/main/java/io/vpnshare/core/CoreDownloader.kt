@@ -198,23 +198,7 @@ object CoreDownloader {
         }
     }
 
-    fun importRulesetDir(ctx: Context, src: File): Step {
-        return try {
-            val dir = File(ctx.filesDir, RULESET_DIR).apply { mkdirs() }
-            var n = 0
-            for (f in src.listFiles().orEmpty()) {
-                if (f.isFile && f.name.endsWith(".yaml")) {
-                    f.copyTo(File(dir, f.name), overwrite = true)
-                    n++
-                }
-            }
-            Step("导入规则集", n > 0, n.toString() + " 个文件")
-        } catch (e: Exception) {
-            Step("导入规则集", false, e.message ?: e.toString())
-        }
-    }
-
-    // ---------------- 内部 ----------------
+        // ---------------- 内部 ----------------
 
     private fun emit(onStep: (Step) -> Unit, s: Step): Step {
         onStep(s)
