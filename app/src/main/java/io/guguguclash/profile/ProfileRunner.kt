@@ -184,7 +184,8 @@ object ProfileRunner {
             if (!nodeRules.isEmpty) {
                 ShareState.log("节点处理：保留 " + tr.kept + " 个，剔除 " + tr.dropped + " 个，改名 " + tr.renamed + " 个（已同步组引用）")
             }
-            ConfigBuilder.buildAdopted(tr.text, opts)
+            val warnings = mutableListOf<String>()
+            ConfigBuilder.buildAdopted(tr.text, opts, warnings).also { for (w in warnings) ShareState.log("WARN " + w) }
         } else {
             ConfigBuilder.build(template, opts)
         }

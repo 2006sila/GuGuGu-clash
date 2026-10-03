@@ -115,6 +115,17 @@ GuGuGu-clash 换了一条路：**用 root 在手机侧把热点客户端的流�
 4. **开共享** —— 回到主界面，打开右上角开关
 5. **连热点** —— 电脑连上手机热点即可，无需任何额外配置
 
+### 从旧版本迁移（1.0.x → 1.1.0，重要）
+
+1.1.0 起包名由 `io.vpnshare` 改为 `io.guguguclash`，在系统看来是**另一个 App**，不能覆盖安装：
+
+1. 先记下订阅链接（旧 App 里的配置**不会**自动带过来）
+2. 安装 1.1.0 → 首次打开会自动把内核装到 `/data/adb/guguguclash`
+3. 重新导入订阅、重设开关；确认可用后再卸载旧版
+4. 旧版留下的 `/data/adb/vpnshare` 目录可以删掉，本版不再使用
+
+同包名的小版本升级（例如 1.0.3 → 1.0.4）不受影响，直接覆盖安装即可。
+
 ## 常见问题
 
 ### 电脑完全上不了网
@@ -199,14 +210,14 @@ powershell -File scripts/verify-assets.ps1   # 校验与 asset-checksums.txt 是
 # armv7 发布包
 ./gradlew :app:assembleArmv7Release
 
-# 跑单元测试（210 个）
+# 跑单元测试（218 个）
 ./gradlew :app:testArm64DebugUnitTest
 ```
 
 产物名统一为 GuGuGu-clash-<版本>-<abi>-<buildType>.apk，例如：
 
 ```
-app/build/outputs/apk/arm64/release/GuGuGu-clash-1.0.2-arm64-release.apk
+app/build/outputs/apk/arm64/release/GuGuGu-clash-1.1.0-arm64-release.apk
 ```
 
 > 用 flavor 而不是 ABI splits：splits 只拆 `.so`，**不拆 assets**，

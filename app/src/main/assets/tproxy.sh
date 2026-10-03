@@ -162,6 +162,10 @@ hs_apply() {
       iptables -w 100 -t mangle -C $HS_MANGLE -d "$ipa" -j RETURN 2>/dev/null || \
         iptables -w 100 -t mangle -A $HS_MANGLE -d "$ipa" -j RETURN
     done
+    # UDP 53 显式放行、**故意不做 TPROXY**：DNS 已经由上面 nat 链的 53→REDIRECT 交给内核 DNS 口（$HS_DNS）。
+    # 若这里也让 53 走 TPROXY，查询会被劫到代理入口（$HS_TPROXY），内核 DNS 收不到 → fake-ip 失效。
+    # （两处「不一致」是分工：nat 决定谁来做 DNS，mangle 决定哪些 UDP 去代理。）
+    # 别为了「和 nat 链对齐」把这条后置或删掉 —— RuleScriptTest.udp53IsExcludedFromTproxy 钉着它。
     iptables -w 100 -t mangle -A $HS_MANGLE -p udp --dport 53 -j RETURN
     if iptables -w 100 -t mangle -A $HS_MANGLE -p udp -j TPROXY --on-port "$HS_TPROXY" --tproxy-mark $HS_MARK 2>/dev/null; then
       iptables -w 100 -t mangle -D PREROUTING -i "$IFACE" -j $HS_MANGLE 2>/dev/null

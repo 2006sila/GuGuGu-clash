@@ -479,7 +479,7 @@ object ConfigBuilder {
      *
      * 现在统一改成：**解析一次 → 在 MutableList 上原地改 → 最后拼一次**。
      */
-    fun buildAdopted(subscriptionYaml: String, opts: Options): String {
+    fun buildAdopted(subscriptionYaml: String, opts: Options, warnings: MutableList<String>? = null): String {
         val o = opts.over
         val L = subscriptionYaml.lines().toMutableList()
 
@@ -520,7 +520,7 @@ object ConfigBuilder {
         insertBeforeRulesInPlace(L, scalars)
 
         // 4) 用户规则：采纳模式也必须生效（详见 injectUserRulesInPlace 的说明）
-        injectUserRulesInPlace(L, opts, subscriptionYaml)
+        injectUserRulesInPlace(L, opts, subscriptionYaml, warnings)
 
         return L.joinToString("\n")
     }
@@ -536,18 +536,34 @@ object ConfigBuilder {
      *  · 「走代理」要落到订阅真实存在的组上（取它自己 rules 里 MATCH 后面的组名），
      *    否则内核会因为「组不存在」拒绝加载整份配置 —— 那比规则不生效更糟。
      */
-    private fun injectUserRulesInPlace(L: MutableList<String>, opts: Options, subscriptionYaml: String) {
+    private fun injectUserRulesInPlace(
+        L: MutableList<String>,
+        opts: Options,
+        subscriptionYaml: String,
+        warnings: MutableList<String>?
+    ) {
+        val all = userRuleLines(opts)
+        if (all.isEmpty()) return                  // 用户没写规则，什么都不用做
+
         val target = adoptedProxyTarget(subscriptionYaml)
         val prelude = if (target == null) {
             // 找不到可用的组名时，宁可不注入「走代理」规则，也不能让整份配置起不来
-            userRuleLines(opts).filterNot { it.split(",").getOrNull(2)?.trim()?.uppercase() == "PROXY" }
+            warnings?.add("订阅里找不到可用的策略组名，「走代理」规则未能注入（直连/拦截规则不受影响）")
+            all.filterNot { it.split(",").getOrNull(2)?.trim()?.uppercase() == "PROXY" }
         } else {
             userRuleLines(opts, target)
         }
         if (prelude.isEmpty()) return
 
         val ri = L.indexOfFirst { it.trim() == "rules:" }
-        if (ri < 0) return
+        if (ri < 0) {
+            // 以前这里是静默 return：订阅没有 rules 段时，用户写的规则一条都不会生效却毫无提示
+            warnings?.add(
+                "订阅里没有 rules: 段，你写的 " + prelude.size + " 条规则无处插入、本次已忽略" +
+                    "（可改用「重建模式」，或把规则写成订阅自带的形式）"
+            )
+            return
+        }
 
         var indent = "  "
         for (i in ri + 1 until L.size) {

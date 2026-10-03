@@ -95,6 +95,22 @@ sniffer:
     }
 
     @Test
+    fun adoptedConfigWarnsWhenSubscriptionHasNoRulesBlock() {
+        // 订阅没有 rules 段时，用户规则无处插入 —— 以前是静默丢弃，现在必须给出提示且不凭空造规则
+        val noRules = sub.lines()
+            .filterNot { it.trim() == "rules:" || it.trim().startsWith("- MATCH,") }
+            .joinToString("\n")
+        val warnings = mutableListOf<String>()
+        val out = ConfigBuilder.buildAdopted(
+            noRules,
+            ConfigBuilder.Options(customRules = listOf("DOMAIN-SUFFIX,mine.example,DIRECT")),
+            warnings
+        )
+        assertTrue("没有 rules 段时必须给出提示", warnings.any { it.contains("没有 rules") })
+        assertFalse("没有 rules 段时不该凭空造一条规则", out.contains("mine.example"))
+    }
+
+    @Test
     fun adoptedProxyTargetFallsBackToFirstGroup() {
         assertEquals(
             "♻️ 手动切换",

@@ -36,12 +36,33 @@ class RuleScriptTest {
         assertTrue("DNS 劫持必须先于全局 TCP 重定向", dnsRedirect < tcpRedirect)
     }
 
+    /**
+     * UDP DNS **故意**不做 TPROXY —— 两条链看似"不一致"，其实是分工：
+     *  · nat 决定「谁来做 DNS」：53 重定向到内核 DNS 口（$HS_DNS），且排在所有 RETURN 之前；
+     *  · mangle 决定「哪些 UDP 去代理」：53 必须放行，否则查询会被劫到代理入口（$HS_TPROXY），
+     *    内核 DNS 收不到查询 → fake-ip 失效 → 客户端只能按 IP 分流。
+     *
+     * 真机复核（2026-10）：直接查热点网关自身地址的 53 端口，返回的仍是 fake-ip（198.18.x），
+     * 说明「网关地址的 UDP 查询会落到系统 dnsmasq」的说法不成立 —— nat 的 53 排在 RETURN 之前。
+     * 别为了"与 nat 链对齐"把这条 RETURN 后置或删掉。
+     */
     @Test
     fun udp53IsExcludedFromTproxy() {
         val mangle = script.substringAfter("-t mangle -N \$HS_MANGLE")
         val dnsReturn = mangle.indexOf("--dport 53 -j RETURN")
         val tproxy = mangle.indexOf("TPROXY --on-port")
-        assertTrue(dnsReturn in 0 until tproxy)
+        assertTrue("mangle 链里找不到 UDP 53 放行", dnsReturn >= 0)
+        assertTrue("UDP 53 放行必须排在 TPROXY 之前", dnsReturn in 0 until tproxy)
+
+        // TPROXY 那条不能自己带上 53（否则等于把 DNS 抢到代理口）
+        val tproxyLine = mangle.lines().firstOrNull { it.contains("TPROXY --on-port") } ?: ""
+        assertFalse("TPROXY 行不该匹配 --dport 53：" + tproxyLine.trim(), tproxyLine.contains("--dport 53"))
+
+        // nat 那条必须指向 DNS 口，而不是代理口
+        val natBlock = script.substringAfter("-t nat -N \$HS_NAT").substringBefore("echo \"TCP")
+        val dnsLine = natBlock.lines().firstOrNull { it.contains("--dport 53 -j REDIRECT") } ?: ""
+        assertTrue("nat 的 53 重定向必须指向 DNS 口：" + dnsLine.trim(), dnsLine.contains("\$HS_DNS"))
+        assertFalse("nat 的 53 重定向不该指向代理口", dnsLine.contains("\$HS_TPROXY"))
     }
 
     @Test
