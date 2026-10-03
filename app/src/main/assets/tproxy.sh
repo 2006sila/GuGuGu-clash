@@ -1,7 +1,7 @@
 #!/system/bin/sh
-# VpnShare 接管脚本：把热点 / USB 共享的客户端流量透明代理到本机内核
-# 独立用法: su -c 'sh /data/adb/vpnshare/run/tproxy.sh on|off|status'
-# App 用法: App 把装配好的脚本落盘到 /data/adb/vpnshare/run/tproxy.sh，再执行 sh <路径> <动作>
+# GuGuGu-clash 接管脚本：把热点 / USB 共享的客户端流量透明代理到本机内核
+# 独立用法: su -c 'sh /data/adb/guguguclash/run/tproxy.sh on|off|status'
+# App 用法: App 把装配好的脚本落盘到 /data/adb/guguguclash/run/tproxy.sh，再执行 sh <路径> <动作>
 #           **必须落盘执行**：下面的独立守护要用 $0 把自己重新拉起来；
 #           把脚本文本灌进 su 的 stdin 时 $0 是 shell 名，守护根本起不来（旧实现在此静默失效）。
 # 环境变量: HS_ACTION=on|off|status  HS_IFACE=(留空=自动)  HS_REDIR=7892  HS_TPROXY=7893  HS_DNS=1053  HS_UDP=1  HS_BLOCK_V6=1
@@ -26,7 +26,7 @@ HS_BLOCK=HS_BLOCK
 # 导致内核出站流量全部回环，表现为「一装规则电脑就断网」。
 [ -z "$HS_MARK" ] && HS_MARK=2025
 # 守护进程 pid 文件。放 /data/local/tmp 是因为它必须在 App 被杀后仍然可读写
-HS_WATCH_PID=/data/local/tmp/vpnshare.watch.pid
+HS_WATCH_PID=/data/local/tmp/guguguclash.watch.pid
 # 脚本自身路径（必须是绝对路径）。独立守护靠它重启自己。
 HS_SELF="$0"
 case "$HS_SELF" in
@@ -84,7 +84,7 @@ hs_watch_run() {
   while true; do
     sleep 4
     # 用全路径匹配，避免误判用户自己跑的其它 mihomo（例如 CMFA）
-    if ! pgrep -f 'vpnshare/bin/mihomo' >/dev/null 2>&1; then
+    if ! pgrep -f 'guguguclash/bin/mihomo' >/dev/null 2>&1; then
       echo "WATCH 内核已不在，自动摘除共享规则"
       hs_unapply keep-watch
       rm -f "$HS_WATCH_PID"
@@ -123,7 +123,7 @@ hs_apply() {
   # 装规则前必须确认内核真的活着：否则客户端流量会被 REDIRECT 到一个不存在的端口，
   # 表现为「一开共享电脑就断网」。App 侧另有「端口是否都在监听」的校验，
   # 这条是给命令行用法兜底（也是照 box4/Surfing 的 probe_user_group 思路补的）。
-  if ! pgrep -f 'vpnshare/bin/mihomo' >/dev/null 2>&1; then
+  if ! pgrep -f 'guguguclash/bin/mihomo' >/dev/null 2>&1; then
     echo "ERR 内核未在运行，已拒绝安装规则（先在内核页启动内核）"
     return 1
   fi

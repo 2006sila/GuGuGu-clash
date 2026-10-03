@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <style name="Theme.VpnShare" parent="Theme.Material3.DayNight.NoActionBar">
+    <style name="Theme.GuGuGuClash" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="colorPrimary">@color/md_primary</item>
         <item name="colorOnPrimary">@color/md_on_primary</item>
         <item name="colorPrimaryContainer">@color/md_primary_container</item>
@@ -26,21 +26,21 @@
     <!-- 库样式别名：nonTransitiveRClass=true 时，库的 R 不并入应用 R，
          在 Kotlin 里要用 com.google.android.material.R 才能引用。
          这里做一层应用级别名，既能在 Kotlin 用 R.style.<别名>，也能挡住上游改名。 -->
-    <style name="Widget.VpnShare.Button.Tonal" parent="Widget.Material3.Button.TonalButton" />
-    <style name="Widget.VpnShare.Button.Text" parent="Widget.Material3.Button.TextButton" />
+    <style name="Widget.GuGuGuClash.Button.Tonal" parent="Widget.Material3.Button.TonalButton" />
+    <style name="Widget.GuGuGuClash.Button.Text" parent="Widget.Material3.Button.TextButton" />
 
-    <style name="Widget.VpnShare.Card" parent="Widget.Material3.CardView.Filled">
+    <style name="Widget.GuGuGuClash.Card" parent="Widget.Material3.CardView.Filled">
         <item name="cardCornerRadius">@dimen/card_corner</item>
         <item name="cardElevation">0dp</item>
         <item name="strokeWidth">0dp</item>
     </style>
 
-    <style name="TextAppearance.VpnShare.Section" parent="TextAppearance.Material3.TitleSmall">
+    <style name="TextAppearance.GuGuGuClash.Section" parent="TextAppearance.Material3.TitleSmall">
         <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
         <item name="android:letterSpacing">0.08</item>
     </style>
 
-    <style name="TextAppearance.VpnShare.Mono" parent="TextAppearance.Material3.BodySmall">
+    <style name="TextAppearance.GuGuGuClash.Mono" parent="TextAppearance.Material3.BodySmall">
         <item name="android:fontFamily">monospace</item>
         <item name="android:textSize">@dimen/text_mono</item>
     </style>

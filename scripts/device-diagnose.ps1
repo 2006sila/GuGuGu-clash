@@ -24,7 +24,7 @@ function SU($label, $cmd) {
   foreach ($l in $r) { W ("  " + $l) }
 }
 
-W "VpnShare 设备诊断报告"
+W "GuGuGu-clash 设备诊断报告"
 W ("时间: " + (Get-Date).ToString("yyyy-MM-dd HH:mm:ss"))
 W ""
 W "===== adb devices ====="
@@ -46,22 +46,22 @@ foreach ($p in @("ro.product.model","ro.product.cpu.abi","ro.build.version.relea
 }
 
 SU "root" "id"
-SU "内核目录" "ls -l /data/adb/vpnshare"
-SU "bin" "ls -l /data/adb/vpnshare/bin"
-SU "conf" "ls -l /data/adb/vpnshare/conf"
-SU "conf/providers" "ls -l /data/adb/vpnshare/conf/providers"
-SU "conf/ruleset" "ls -l /data/adb/vpnshare/conf/ruleset"
-SU "内核版本" "/data/adb/vpnshare/bin/mihomo -v"
-SU "配置自检" "/data/adb/vpnshare/bin/mihomo -t -d /data/adb/vpnshare/conf -f /data/adb/vpnshare/conf/config.yaml"
-SU "config.yaml 前 80 行" "head -n 80 /data/adb/vpnshare/conf/config.yaml"
-SU "应用私有目录" "ls -lR /data/data/io.vpnshare/files"
-SU "应用配置" "cat /data/data/io.vpnshare/shared_prefs/vpnshare.xml"
+SU "内核目录" "ls -l /data/adb/guguguclash"
+SU "bin" "ls -l /data/adb/guguguclash/bin"
+SU "conf" "ls -l /data/adb/guguguclash/conf"
+SU "conf/providers" "ls -l /data/adb/guguguclash/conf/providers"
+SU "conf/ruleset" "ls -l /data/adb/guguguclash/conf/ruleset"
+SU "内核版本" "/data/adb/guguguclash/bin/mihomo -v"
+SU "配置自检" "/data/adb/guguguclash/bin/mihomo -t -d /data/adb/guguguclash/conf -f /data/adb/guguguclash/conf/config.yaml"
+SU "config.yaml 前 80 行" "head -n 80 /data/adb/guguguclash/conf/config.yaml"
+SU "应用私有目录" "ls -lR /data/data/io.guguguclash/files"
+SU "应用配置" "cat /data/data/io.guguguclash/shared_prefs/guguguclash.xml"
 SU "mihomo 进程" "ps -A | grep -i mihomo"
 SU "iptables nat 链" "iptables -t nat -S HS_NAT"
 
 W ""
 W "===== logcat（应用相关）====="
-(& $adb logcat -d -t 1500 2>&1) | Select-String -Pattern "io.vpnshare|AndroidRuntime|FATAL|vpnshare" | Select-Object -Last 80 | ForEach-Object { W ("  " + $_) }
+(& $adb logcat -d -t 1500 2>&1) | Select-String -Pattern "io.guguguclash|AndroidRuntime|FATAL|guguguclash" | Select-Object -Last 80 | ForEach-Object { W ("  " + $_) }
 
 $lines | Set-Content -Path $report -Encoding UTF8
 Write-Host "报告已写入: $report"

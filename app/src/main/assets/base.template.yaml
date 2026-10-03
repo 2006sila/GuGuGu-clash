@@ -1,4 +1,4 @@
-# VpnShare 主配置模板
+# GuGuGu-clash 主配置模板
 # 由 ConfigBuilder 在此基础上注入 [proxy-providers] 与 [rules]，生成最终 config.yaml。
 # 管控段：tun / redir-port / tproxy-port / dns / geox-url —— 订阅内容不得覆盖。
 

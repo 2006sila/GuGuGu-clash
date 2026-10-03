@@ -22,7 +22,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:label="@string/app_name"
         android:supportsRtl="true"
-        android:theme="@style/Theme.VpnShare">
+        android:theme="@style/Theme.GuGuGuClash">
 
         <activity
             android:name=".ui.MainActivity"
@@ -33,14 +33,14 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- 深链导入：vpnshare://import?url=<编码后的订阅地址>
+            <!-- 深链导入：guguguclash://import?url=<编码后的订阅地址>
                  机场页面/浏览器点一下就进来，省掉「复制 → 切 App → 粘贴」。
                  不静默导入：进来先弹确认框显示域名，链接可能来自任意网页。 -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="vpnshare" android:host="import" />
+                <data android:scheme="guguguclash" android:host="import" />
             </intent-filter>
         </activity>
 

@@ -14,8 +14,8 @@ foreach ($n in $names) {
   Write-Host "下载 geosite/$n.yaml"
   $u1 = "$base/$n.yaml"
   $u2 = "https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/$n.yaml"
-  try { Invoke-WebRequest -Uri $u1 -OutFile $out -Headers @{ "User-Agent" = "vpnshare-build" } }
-  catch { Write-Host "  raw 失败，改用 jsdelivr 镜像"; Invoke-WebRequest -Uri $u2 -OutFile $out -Headers @{ "User-Agent" = "vpnshare-build" } }
+  try { Invoke-WebRequest -Uri $u1 -OutFile $out -Headers @{ "User-Agent" = "guguguclash-build" } }
+  catch { Write-Host "  raw 失败，改用 jsdelivr 镜像"; Invoke-WebRequest -Uri $u2 -OutFile $out -Headers @{ "User-Agent" = "guguguclash-build" } }
   $cnt = (Select-String -Path $out -Pattern '^\s*-' ).Count
   Write-Host "  -> $out  条目数=$cnt"
 }

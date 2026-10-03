@@ -1,12 +1,12 @@
 #!/system/bin/sh
-# VpnShare 紧急恢复：电脑突然上不了网时执行这个。
-# 用法：su -c 'sh /data/local/tmp/vpnshare-recover.sh'
+# GuGuGu-clash 紧急恢复：电脑突然上不了网时执行这个。
+# 用法：su -c 'sh /data/local/tmp/guguguclash-recover.sh'
 # 作用：摘掉所有透明代理规则，让热点客户端回到纯直连。不动内核、不动 App。
 #
 # 优先调用 App 落盘的那份接管脚本（规则逻辑的唯一真源，mark/端口都随上次 apply 走）；
 # 只有它不存在时才退回下面的内联清扫。
 
-SCRIPT=/data/adb/vpnshare/run/tproxy.sh
+SCRIPT=/data/adb/guguguclash/run/tproxy.sh
 
 echo '[1/4] 停止独立守护'
 pkill -f 'tproxy.sh watch' 2>/dev/null

@@ -71,7 +71,7 @@
             <!-- 主开关大卡片 -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/cardAction"
-                style="@style/Widget.VpnShare.Card"
+                style="@style/Widget.GuGuGuClash.Card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
@@ -124,7 +124,7 @@
                 android:layout_marginTop="@dimen/section_gap"
                 android:layout_marginBottom="4dp"
                 android:text="@string/section_runtime"
-                android:textAppearance="@style/TextAppearance.VpnShare.Section" />
+                android:textAppearance="@style/TextAppearance.GuGuGuClash.Section" />
 
             <LinearLayout
                 android:id="@+id/groupRuntime"
@@ -139,7 +139,7 @@
                 android:layout_marginTop="@dimen/section_gap"
                 android:layout_marginBottom="4dp"
                 android:text="@string/section_config"
-                android:textAppearance="@style/TextAppearance.VpnShare.Section" />
+                android:textAppearance="@style/TextAppearance.GuGuGuClash.Section" />
 
             <LinearLayout
                 android:id="@+id/groupConfig"
@@ -154,7 +154,7 @@
                 android:layout_marginTop="@dimen/section_gap"
                 android:layout_marginBottom="4dp"
                 android:text="@string/section_advanced"
-                android:textAppearance="@style/TextAppearance.VpnShare.Section" />
+                android:textAppearance="@style/TextAppearance.GuGuGuClash.Section" />
 
             <LinearLayout
                 android:id="@+id/groupAdvanced"

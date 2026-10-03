@@ -1,4 +1,4 @@
-# VpnShare 内置资产校验基准
+# GuGuGu-clash 内置资产校验基准
 #
 # 用途：构建可复现 —— 换机器 / 换时间重新拉取后，与下表比对即可确认没有版本漂移。
 # 复核命令: powershell -File scripts/verify-assets.ps1

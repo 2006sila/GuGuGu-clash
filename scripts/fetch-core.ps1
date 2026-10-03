@@ -61,7 +61,7 @@ function Test-CoreArchive {
 }
 
 Write-Host "拉取 release: $Version"
-$rel = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases/tags/$Version" -Headers @{ "User-Agent" = "vpnshare-build" }
+$rel = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases/tags/$Version" -Headers @{ "User-Agent" = "guguguclash-build" }
 
 $failed = 0
 foreach ($a in $rel.assets) {
@@ -72,7 +72,7 @@ foreach ($a in $rel.assets) {
   $gz = Join-Path $outDir "mihomo.gz"
 
   Write-Host "下载 $($a.name) ($([math]::Round($a.size/1MB,1)) MB) -> src/$($info.flavor)/assets/mihomo/mihomo.gz"
-  Invoke-WebRequest -Uri $a.browser_download_url -OutFile $gz -Headers @{ "User-Agent" = "vpnshare-build" }
+  Invoke-WebRequest -Uri $a.browser_download_url -OutFile $gz -Headers @{ "User-Agent" = "guguguclash-build" }
 
   $r = Test-CoreArchive -Path $gz -ExpectMachine $info.machine
   if ($r.ok) {

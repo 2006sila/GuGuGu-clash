@@ -9,7 +9,7 @@ New-Item -ItemType Directory -Force -Path $out | Out-Null
 
 $zip = Join-Path $out "mihomo-$Version-source.zip"
 Write-Host "下载 $Version 源码归档"
-Invoke-WebRequest -Uri "https://github.com/MetaCubeX/mihomo/archive/refs/tags/$Version.zip" -OutFile $zip -Headers @{ "User-Agent" = "vpnshare-build" }
+Invoke-WebRequest -Uri "https://github.com/MetaCubeX/mihomo/archive/refs/tags/$Version.zip" -OutFile $zip -Headers @{ "User-Agent" = "guguguclash-build" }
 
 $sum = (Get-FileHash -Path $zip -Algorithm SHA256).Hash.ToLower()
 Write-Host ("  源码归档 " + [math]::Round((Get-Item $zip).Length/1MB,2) + " MB  SHA256=" + $sum)

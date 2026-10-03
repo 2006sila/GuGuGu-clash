@@ -18,10 +18,10 @@ foreach ($src in $files.Keys) {
   $out = $files[$src]
   $dst = Join-Path $dest $out
   Write-Host "下载 $src -> $out"
-  Invoke-WebRequest -Uri "$base/$src" -OutFile $dst -Headers @{ "User-Agent" = "vpnshare-build" }
+  Invoke-WebRequest -Uri "$base/$src" -OutFile $dst -Headers @{ "User-Agent" = "guguguclash-build" }
   $expect = $null
   try {
-    $sum = (Invoke-WebRequest -Uri "$base/$src.sha256sum" -Headers @{ "User-Agent" = "vpnshare-build" }).Content
+    $sum = (Invoke-WebRequest -Uri "$base/$src.sha256sum" -Headers @{ "User-Agent" = "guguguclash-build" }).Content
     $expect = ($sum -split "\s+")[0].Trim().ToLower()
   } catch { Write-Host "  WARN 未能下载 sha256sum" }
   if ($expect) {

@@ -1,3 +1,3 @@
--keep class io.vpnshare.** { *; }
+-keep class io.guguguclash.** { *; }
 -dontwarn okhttp3.**
 -dontwarn okio.**

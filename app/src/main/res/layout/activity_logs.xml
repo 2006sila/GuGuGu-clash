@@ -62,7 +62,7 @@
             android:id="@+id/tvLog"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textAppearance="@style/TextAppearance.VpnShare.Mono"
+            android:textAppearance="@style/TextAppearance.GuGuGuClash.Mono"
             android:textColor="?attr/colorOnSurface"
             android:textIsSelectable="true" />
     </ScrollView>

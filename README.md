@@ -220,7 +220,7 @@ app/build/outputs/apk/arm64/release/GuGuGu-clash-1.0.2-arm64-release.apk
 ## 项目结构
 
 ```
-app/src/main/java/io/vpnshare/
+app/src/main/java/io/guguguclash/
 ├── core/          内核生命周期：安装、启动、REST API、下载
 ├── profile/       订阅处理：解析、配置生成、加密、节点变换、规则匹配
 ├── service/       前台服务：启动编排、流量采样、网络联动

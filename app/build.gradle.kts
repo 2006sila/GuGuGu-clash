@@ -21,11 +21,11 @@ val hasReleaseSigning = !releaseStoreFile.isNullOrBlank() && file(releaseStoreFi
 val appVersionName = "1.0.4"
 
 android {
-    namespace = "io.vpnshare"
+    namespace = "io.guguguclash"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "io.vpnshare"
+        applicationId = "io.guguguclash"
         minSdk = 24
         targetSdk = 34
         versionCode = 5
