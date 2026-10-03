@@ -9,7 +9,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.net.ConnectivityManager
+import android.net.LinkProperties
 import android.net.Network
+import android.net.NetworkCapabilities
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -45,7 +47,14 @@ class ShareService : Service() {
     private val stopping = AtomicBoolean(false)
     private var cm: ConnectivityManager? = null
     private var netCallback: ConnectivityManager.NetworkCallback? = null
-    private var lastIface: String = ""
+    /** 上次装规则时的「接口 + 地址」标识（见 TetherManager.tetherKey） */
+    private var lastTetherKey: String = ""
+    /** 共享接口连续判空的次数，用于「永久消失就摘规则」，见 refreshTether */
+    private var ifaceGoneStreak = 0
+    /** 上次自动重装规则的时间，用于去抖 */
+    private var lastApplyAt = 0L
+    /** 已经排过一次「内核已退出 → stopAll」，避免回调连击时重复排队 */
+    @Volatile private var stopQueued = false
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -148,7 +157,7 @@ class ShareService : Service() {
             ShareState.phase = ShareState.Phase.STARTING_CORE
             notifyState("启动内核")
             TetherManager.ensureDirs()
-            // 内核将以 App uid 运行，每次启动都要确保它能穿越 /data/adb 并读写运行目录
+            // 内核以 root 运行；这一步是为了修 /data/adb 的可穿越位与运行目录的组权限
             val perm = CoreInstaller.ensurePermissions()
             Log.i(TAG, "ensurePermissions: " + perm.out.trim() + " err=" + perm.err.trim())
 
@@ -191,6 +200,9 @@ class ShareService : Service() {
             val coreAlreadyUp = restUp && portsUp
             if (coreAlreadyUp) {
                 ShareState.log("内核已在运行且端口齐全，直接复用（不重启、不断网）")
+                // 复用意味着没有 proc 句柄：必须告诉 CoreManager 走 REST 判活，
+                // 否则巡检会把它当死内核，三秒内把共享停掉。
+                CoreManager.markAdopted(true)
             } else if (!CoreManager.start(
                     onLog = { line -> ShareState.logCore(line) },
                     runAsUid = null,
@@ -245,6 +257,48 @@ class ShareService : Service() {
                 val r = TetherOffload.setDisabled(true)
                 ShareState.log(if (r.ok) "已关闭网络共享硬件加速" else "WARN 关闭硬件加速失败：" + r.combined)
                 ShareState.offloadDisabled = r.ok
+            }
+
+            // 系统「专用 DNS」走 DoT，会直接绕过 53 端口的 DNS 劫持 —— 一起关掉，原值留着恢复。
+            // 抄自 box4magisk / Surfing v7（它们是无条件关，这里按开关来）。
+            //
+            // 原值**落盘**（Prefs.privateDnsSavedKey/Value），不用内存字段：
+            // 内存版在「共享期间进程被杀 / 手机重启」时会丢，而开机自启重新 startAll 读到的
+            // 已经是 off，用户原本的设置就永远回不来了。
+            var prefs = p
+            val leftover = if (p.privateDnsSavedKey.isNotBlank() && p.privateDnsSavedValue.isNotBlank())
+                io.vpnshare.tether.PrivateDns.State(p.privateDnsSavedKey, p.privateDnsSavedValue) else null
+
+            if (leftover != null && !p.managePrivateDns) {
+                // 用户后来把这个功能关了，但我们之前确实改过系统设置 —— 先还回去再撒手
+                if (io.vpnshare.tether.PrivateDns.shouldRestore(leftover) &&
+                    io.vpnshare.tether.PrivateDns.set(leftover.key, leftover.value).ok
+                ) {
+                    ShareState.log("专用 DNS 已按上次记录恢复（" + leftover.key + "=" + leftover.value + "）")
+                    prefs = prefs.copy(privateDnsSavedKey = "", privateDnsSavedValue = "")
+                }
+            } else if (p.managePrivateDns) {
+                // 有历史记录就沿用它；没有才现场读一次系统值
+                val saved = leftover ?: io.vpnshare.tether.PrivateDns.current()
+                when {
+                    saved == null -> ShareState.log(
+                        "WARN 该 ROM 没有专用 DNS 设置项（试过 " +
+                            io.vpnshare.tether.PrivateDns.KEYS.joinToString("/") +
+                            "），若客户端 DNS 不生效请手动关掉「私人 DNS」"
+                    )
+                    io.vpnshare.tether.PrivateDns.isOff(saved.value) -> {
+                        // 本来就是 off：没有可恢复的东西，把历史记录清掉
+                        prefs = prefs.copy(privateDnsSavedKey = "", privateDnsSavedValue = "")
+                    }
+                    else -> {
+                        val r = io.vpnshare.tether.PrivateDns.set(saved.key, io.vpnshare.tether.PrivateDns.OFF)
+                        ShareState.log(
+                            if (r.ok) "已关闭系统专用 DNS（" + saved.key + "=" + saved.value + "，停止共享时恢复）"
+                            else "WARN 关闭专用 DNS 失败：" + r.combined
+                        )
+                        if (r.ok) prefs = prefs.copy(privateDnsSavedKey = saved.key, privateDnsSavedValue = saved.value)
+                    }
+                }
             }
 
             // 关键安全闸：先确认「内核真的能出网」，再决定要不要接管热点。
@@ -308,7 +362,7 @@ class ShareService : Service() {
 
             // 按网络自动切换。没配规则时它自己就会跳过，不会注册任何回调。
             io.vpnshare.service.NetworkWatcher.start(applicationContext)
-            Prefs.save(ctx, p.copy(enabled = true))
+            Prefs.save(ctx, prefs.copy(enabled = true))
             notifyState("咕咕咕clash 已启用")
 
             // 机场配置的总控组默认常常指向 DIRECT —— 不换成真实节点的话，
@@ -340,6 +394,7 @@ class ShareService : Service() {
         } finally {
             // 无论成功失败都必须复位，否则一次失败后再也无法启动
             starting = false
+            stopQueued = false
         }
     }
 
@@ -356,7 +411,8 @@ class ShareService : Service() {
         if (det == null) {
             ShareState.log("提示：当前没有检测到热点/USB 共享接口，热点打开后会自动补装规则")
         }
-        lastIface = det ?: ""
+        lastTetherKey = TetherManager.tetherKey(p) ?: ""
+        ifaceGoneStreak = 0
 
         val rep = TetherManager.listeningPortsDetailed(p)
         ShareState.tcpOk = rep.state[p.redirPort] == true
@@ -372,16 +428,15 @@ class ShareService : Service() {
     }
 
     /**
-     * 内核该监听的端口是不是都在。必须连 **mixed 端口** 一起查：
-     * 出口探测正是走它，只查 redir/tproxy/dns 的话，一个「redir/tproxy/dns 正常但
-     * mixed 没绑上」的孤儿内核会被判为健康而复用 —— 随后探测超时、服务判定内核已死、
-     * 整个共享被回滚。这个坑踩过两次。
+     * 内核该监听的端口是不是都在。
+     *
+     * 判据全部放在 [TetherManager.allPortsListening]：端口集合和「查了哪些键」必须同源。
+     * 这里曾经自己拼条件、去读 state[mixedPort]，而 state 的键只有 redir/tproxy/dns ——
+     * 取到 null 恒判 false，于是「发现存活内核也一律先杀掉再重启」，每次启动都断一次流。
      */
     private fun portsListening(p: Prefs.Data): Boolean = runCatching {
         val rep = TetherManager.listeningPortsDetailed(p)
-        val mixedOk = p.mixedPort <= 0 || rep.state[p.mixedPort] == true
-        rep.state[p.redirPort] == true && rep.state[p.tproxyPort] == true &&
-            rep.state[p.dnsPort] == true && mixedOk
+        TetherManager.allPortsListening(rep.state, p)
     }.getOrDefault(false)
 
     private fun refreshTether() {
@@ -389,29 +444,87 @@ class ShareService : Service() {
         val p = Prefs.load(ctx)
         if (!ShareState.running) return
         try {
-            val det = TetherManager.detectIface(p)
-            if (det != lastIface) {
-                ShareState.log("共享接口变化：" + lastIface + " -> " + (det ?: "无"))
-                if (ShareState.phase == ShareState.Phase.DEGRADED) {
-                    // 降级态下不能在这里补规则：出口本来就不通，装上只会让电脑断网。
-                    // 自愈重试（scheduleRecovery）通过后会把规则装回去。
-                    ShareState.log("当前为降级态（出口不通），暂不装规则；自愈通过后会自动接管")
+            // 用「接口 + 本机地址」当标识：换热点 / 改 DHCP 段时接口名可能不变，只有地址会变
+            val key = TetherManager.tetherKey(p)
+            if (key != lastTetherKey) {
+                if (key == null) {
+                    // 接口没了：第一次只记一笔，不动规则 —— 热点一闪（切换热点瞬间）
+                    // 不值得拆了再装一遍。
+                    // 但**永久消失**（用户关掉热点）时规则会一直留在内核里：独立守护只在
+                    // 「内核没了」时才动手，而内核还活着，它不会管。所以连续两次巡检（约 2 分钟）
+                    // 仍判空就主动摘一次，接口回来自动补装。
+                    lastTetherKey = ""
+                    ShareState.iface = ""
+                    ifaceGoneStreak++
+                    when (ifaceGoneStreak) {
+                        1 -> ShareState.log("共享接口已消失（规则随接口失效，接口回来时自动补装）")
+                        2 -> {
+                            ShareState.log("共享接口持续不存在，主动摘除规则（接口回来时自动补装）")
+                            val r = TetherManager.cleanup(ctx, p)
+                            r.out.lines().filter { it.isNotBlank() }.forEach { ShareState.log(it) }
+                        }
+                        else -> { /* 已经摘过，安静等接口回来 */ }
+                    }
                 } else {
-                    val r = TetherManager.apply(ctx, p)
-                    r.out.lines().filter { it.isNotBlank() }.forEach { ShareState.log(it) }
+                    ifaceGoneStreak = 0
+                    val iface = key.substringBefore("|")
+                    ShareState.log("共享接口/网段变化：" + lastTetherKey.ifBlank { "无" } + " -> " + iface)
+                    when {
+                        ShareState.phase == ShareState.Phase.DEGRADED -> {
+                            // 降级态下不能在这里补规则：出口本来就不通，装上只会让电脑断网。
+                            // 自愈重试（scheduleRecovery）通过后会把规则装回去，并在那里刷新标识。
+                            ShareState.log("当前为降级态（出口不通），暂不装规则；自愈通过后会自动接管")
+                        }
+                        !autoApplyAllowed() -> {
+                            // 去抖 / 开机稳定期：本轮跳过，且**不刷新标识**，
+                            // 让 60 秒巡检再试一次（否则这次变化会被永久忽略）
+                            ShareState.log("本轮暂缓装规则（去抖/开机稳定期），下一次巡检会补上")
+                        }
+                        else -> {
+                            val r = TetherManager.apply(ctx, p)
+                            r.out.lines().filter { it.isNotBlank() }.forEach { ShareState.log(it) }
+                            lastTetherKey = key
+                            // 换网后旧连接的源地址已失效，内核却还留着它们 —— 客户端会一直转圈。
+                            // box4magisk / Surfing v7 的做法就是在网络变化钩子里 DELETE /connections。
+                            if (CoreApi.closeConnections()) {
+                                ShareState.log("已断开内核里的旧连接（换网后旧连接已失效）")
+                            }
+                        }
+                    }
+                    ShareState.iface = iface
                 }
-                lastIface = det ?: ""
-                ShareState.iface = det ?: ""
             }
             if (!CoreManager.isRunning() && ShareState.running) {
                 // 不在这里悄悄重启：内核中途死掉时，tun 的路由改动可能处于半残状态，
                 // 继续留着会持续吞热点流量。宁可停服务让用户重新开一次。
-                ShareState.log("检测到内核已退出，停止服务以恢复电脑上网")
-                work.execute { stopAll() }
+                // 只排一次：网络回调常常连着来，重复排队会让 stopAll 跑三遍（日志里能看到）。
+                if (!stopQueued) {
+                    stopQueued = true
+                    ShareState.log("检测到内核已退出，停止服务以恢复电脑上网")
+                    work.execute { stopAll() }
+                }
             }
         } catch (e: Exception) {
             ShareState.log("巡检异常：" + (e.message ?: ""))
         }
+    }
+
+    /**
+     * 自动重装规则是否放行。两条护栏都抄自 box4magisk / Surfing v7 的 inotify 脚本：
+     *   ① 开机稳定期：开机后 60 秒内网络事件会成串来，这期间装规则等于拿客户端做实验；
+     *   ② 去抖：5 秒内只装一次，避免回调连击把客户端闪断。
+     * 只影响「自动补装」，startAll / 自愈 / 手动刷新都不受它限制。
+     */
+    private fun autoApplyAllowed(): Boolean {
+        val up = android.os.SystemClock.elapsedRealtime()
+        if (up < BOOT_STABLE_MS) {
+            ShareState.log("开机 " + (up / 1000) + " 秒，未过稳定期（" + (BOOT_STABLE_MS / 1000) + " 秒）")
+            return false
+        }
+        val now = System.currentTimeMillis()
+        if (now - lastApplyAt < APPLY_DEBOUNCE_MS) return false
+        lastApplyAt = now
+        return true
     }
 
     // ---------------- 停止流程 ----------------
@@ -440,16 +553,33 @@ class ShareService : Service() {
                 ShareState.log("已恢复网络共享硬件加速设置")
             }
 
-            Prefs.save(ctx, p.copy(enabled = false))
+            // 专用 DNS 只有在「本来就不是 off」时才恢复，免得把用户没设过的状态写回去。
+            // 原值来自落盘记录（见 startAll），所以重启/被杀之后这一轮停止照样能还回去。
+            var afterDns = p
+            val pv = if (p.privateDnsSavedKey.isNotBlank() && p.privateDnsSavedValue.isNotBlank())
+                io.vpnshare.tether.PrivateDns.State(p.privateDnsSavedKey, p.privateDnsSavedValue) else null
+            if (io.vpnshare.tether.PrivateDns.shouldRestore(pv)) {
+                val res = io.vpnshare.tether.PrivateDns.set(pv!!.key, pv.value)
+                ShareState.log(
+                    if (res.ok) "已恢复系统专用 DNS（" + pv.key + "=" + pv.value + "）"
+                    else "WARN 专用 DNS 恢复失败"
+                )
+            }
+            if (p.privateDnsSavedKey.isNotBlank() || p.privateDnsSavedValue.isNotBlank()) {
+                afterDns = p.copy(privateDnsSavedKey = "", privateDnsSavedValue = "")
+            }
+
+            Prefs.save(ctx, afterDns.copy(enabled = false))
             ShareState.phase = ShareState.Phase.IDLE
             ShareState.tcpOk = false
             ShareState.udpOk = false
             ShareState.dnsOk = false
             ShareState.iface = ""
-            lastIface = ""
+            lastTetherKey = ""
         } catch (e: Exception) {
             ShareState.log("停止异常：" + (e.message ?: ""))
         } finally {
+            stopQueued = false
             stopForegroundCompat()
             stopSelf()
         }
@@ -477,6 +607,13 @@ class ShareService : Service() {
         val cb = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) = work.execute { refreshTether() }
             override fun onLost(network: Network) = work.execute { refreshTether() }
+            // 换热点 / 改 DHCP 段时接口名可能不变，只有链路属性（地址、路由）会变。
+            // 只挂 onAvailable/onLost 会漏掉这一类变化 —— 对应模块们用 inotifyd 盯
+            // /data/misc/net 的写事件，这里用 Android 原生回调达到同样效果。
+            override fun onLinkPropertiesChanged(network: Network, lp: LinkProperties) =
+                work.execute { refreshTether() }
+            override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) =
+                work.execute { refreshTether() }
         }
         netCallback = cb
         runCatching { c.registerDefaultNetworkCallback(cb) }
@@ -768,6 +905,11 @@ class ShareService : Service() {
         /** 订阅更新失败后的重试间隔与最大次数 */
         private const val SUB_RETRY_MS = 30 * 60_000L
         private const val SUB_MAX_RETRY = 3
+
+        /** 自动重装规则的最小间隔：网络抖动时回调会连着来，连着装规则会把客户端闪断 */
+        private const val APPLY_DEBOUNCE_MS = 5_000L
+        /** 开机后这段时间内不自动重装规则：开机网络风暴期间规则还没稳（对应模块的 BOOT_STABLE_FLAG） */
+        private const val BOOT_STABLE_MS = 60_000L
 
         @Volatile
         private var instance: ShareService? = null

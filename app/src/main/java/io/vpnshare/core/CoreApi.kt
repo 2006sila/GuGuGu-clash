@@ -64,6 +64,15 @@ object CoreApi {
         false
     }
 
+    /**
+     * 断开内核里所有已有连接。
+     *
+     * 换网 / 网段变化后，旧连接绑定的本机地址已经失效，但内核会一直保留它们；
+     * 客户端表现为「网页转圈然后超时」。box4magisk 与 Surfing v7 的做法是在网络变化
+     * 的钩子里直接 DELETE /connections，这里对齐。
+     */
+    fun closeConnections(): Boolean = send("DELETE", "/connections", "")
+
     fun version(): String? = get("/version")?.let {
         runCatching { JSONObject(it).optString("version") }.getOrNull()
     }

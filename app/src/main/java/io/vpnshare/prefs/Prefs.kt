@@ -29,6 +29,20 @@ object Prefs {
          */
         val proxyPhoneTraffic: Boolean = false,
         val restoreOffloadOnStop: Boolean = false,
+        /**
+         * 共享期间关闭系统「专用 DNS」并在停止时恢复。
+         * 打开专用 DNS 走 DoT，会绕过 53 端口的 DNS 劫持 —— 分流会乱。
+         */
+        val managePrivateDns: Boolean = true,
+        /**
+         * 上次被我们关掉的专用 DNS 原值（键名 + 值），落盘保存。
+         *
+         * 为什么必须落盘：只在内存里的话，共享期间进程被杀 / 手机重启会把原值弄丢，
+         * 而开机自启重新 startAll 时读到的已经是 off，于是永远不会恢复 —— 用户原本的
+         * 私人 DNS 设置就这么被静默改掉了。
+         */
+        val privateDnsSavedKey: String = "",
+        val privateDnsSavedValue: String = "",
         val currentProfileId: String = "",
         val subUpdateHours: Int = 12,
         /**
@@ -188,6 +202,9 @@ object Prefs {
             autoStartOnBoot = p.getBoolean("boot", false),
             proxyPhoneTraffic = p.getBoolean("phoneProxy", false),
             restoreOffloadOnStop = p.getBoolean("restoreOffload", false),
+        managePrivateDns = p.getBoolean("managePrivateDns", true),
+        privateDnsSavedKey = p.getString("privateDnsKey", "") ?: "",
+        privateDnsSavedValue = p.getString("privateDnsValue", "") ?: "",
             currentProfileId = p.getString("profile", "") ?: "",
             subUpdateHours = p.getInt("subHours", 12),
             // 一次性迁移：老版本存的是 mihomo UA，会让机场只吐 base64，改成 ClashMeta 系 UA
@@ -283,6 +300,9 @@ object Prefs {
             .putString("extraDomains", d.extraDomains)
             .putBoolean("phoneProxy", d.proxyPhoneTraffic)
             .putBoolean("restoreOffload", d.restoreOffloadOnStop)
+        .putBoolean("managePrivateDns", d.managePrivateDns)
+        .putString("privateDnsKey", d.privateDnsSavedKey)
+        .putString("privateDnsValue", d.privateDnsSavedValue)
             .putString("profile", d.currentProfileId)
             .putInt("subHours", d.subUpdateHours)
             .putString("ua", d.userAgent)

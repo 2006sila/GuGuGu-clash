@@ -1,5 +1,6 @@
 package io.vpnshare
 
+import io.vpnshare.prefs.Prefs
 import io.vpnshare.tether.RuleBuilder
 import io.vpnshare.tether.TetherManager
 import org.junit.Assert.assertEquals
@@ -72,6 +73,76 @@ tcp6 0 0 [::]:1053 [::]:* LISTEN
         assertTrue("空输出时所有端口都应是 false", s.values.none { it })
     }
 
+    // ---------------- 端口集合必须与「查了哪些键」同源 ----------------
+
+    /**
+     * 回归：混合端口漏进集合时，state 里没有它的键，调用方读 state[mixedPort] 得到 null，
+     * 「端口齐全」恒判 false → 每次启动都把健康内核杀掉重启（断流），
+     * 而「发现残留内核就直接复用、不断网」的分支永远走不到。
+     */
+    @Test
+    fun mixedPortIsPartOfThePortSet() {
+        val p = Prefs.Data(mixedPort = 7890, redirPort = 7892, tproxyPort = 7893, dnsPort = 1053)
+        assertEquals(listOf(7892, 7893, 1053, 7890), TetherManager.portsToCheck(p))
+    }
+
+    @Test
+    fun zeroMixedPortMeansNotChecked() {
+        val p = Prefs.Data(mixedPort = 0, redirPort = 7892, tproxyPort = 7893, dnsPort = 1053)
+        assertEquals(3, TetherManager.portsToCheck(p).size)
+        assertFalse(TetherManager.portsToCheck(p).contains(0))
+    }
+
+    @Test
+    fun allPortsListeningRequiresMixedPortKey() {
+        val p = Prefs.Data(mixedPort = 7890, redirPort = 7892, tproxyPort = 7893, dnsPort = 1053)
+        assertTrue(
+            TetherManager.allPortsListening(
+                mapOf(7892 to true, 7893 to true, 1053 to true, 7890 to true), p
+            )
+        )
+        // mixed 没绑上 → 不齐（避免复用孤儿内核）
+        assertFalse(
+            TetherManager.allPortsListening(
+                mapOf(7892 to true, 7893 to true, 1053 to true, 7890 to false), p
+            )
+        )
+        // 键压根不存在（旧实现的真实形状）→ 必须判不齐，绝不能因为「查不到」而当健康
+        assertFalse(
+            TetherManager.allPortsListening(mapOf(7892 to true, 7893 to true, 1053 to true), p)
+        )
+    }
+
+    @Test
+    fun portSetAndParserShareTheSameSource() {
+        val p = Prefs.Data(mixedPort = 7890, redirPort = 7892, tproxyPort = 7893, dnsPort = 1053)
+        val raw = """
+tcp6 0 0 [::]:7892 [::]:* LISTEN
+tcp6 0 0 [::]:7893 [::]:* LISTEN
+tcp6 0 0 [::]:1053 [::]:* LISTEN
+""".trimIndent()
+        val state = TetherManager.parsePortStates(raw, TetherManager.portsToCheck(p))
+        assertFalse(TetherManager.allPortsListening(state, p))
+        assertEquals(true, state[7892])
+        assertEquals(false, state[7890])
+    }
+
+    // ---------------- 共享接口标识（换网段必须能看出来）----------------
+
+    @Test
+    fun tetherKeyCarriesAddressesSoSubnetChangesAreVisible() {
+        val addrA = "5: wlan2    inet 10.61.80.170/24 brd 10.61.80.255 scope global wlan2"
+        val a = TetherManager.tetherKeyOf("wlan2", addrA)
+        assertEquals("wlan2|10.61.80.170", a)
+        // 同一网络下多次读取必须稳定，否则每次都判「变化」→ 反复重装规则
+        assertEquals(a, TetherManager.tetherKeyOf("wlan2", addrA))
+        // 换了网段（接口名不变）必须能看出来，否则规则永远不会重建
+        val addrB = "5: wlan2    inet 192.168.43.1/24 brd 192.168.43.255 scope global wlan2"
+        assertTrue("地址变化必须体现在标识里", TetherManager.tetherKeyOf("wlan2", addrB) != a)
+        assertEquals(null, TetherManager.tetherKeyOf(null, addrA))
+        assertEquals(null, TetherManager.tetherKeyOf("", addrA))
+    }
+
     // ---------------- tproxy.sh 环境变量交叉校验 ----------------
 
     @Test
@@ -121,6 +192,10 @@ tcp6 0 0 [::]:1053 [::]:* LISTEN
         assertTrue(e.contains("export HS_DNS=1053"))
         assertTrue(e.contains("export HS_UDP=1"))
         assertTrue(e.contains("export HS_BLOCK_V6=1"))
+        // mark / 表号必须由 App 注入，脚本里那份只是命令行默认值
+        assertTrue(e.contains("export HS_MARK=" + RuleBuilder.FWMARK))
+        assertTrue(e.contains("export HS_TABLE=" + RuleBuilder.TABLE_ID))
+        assertTrue(e.contains("export HS_IFACES='"))
     }
 
     @Test

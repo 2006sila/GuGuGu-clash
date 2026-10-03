@@ -4,12 +4,22 @@ import android.content.Context
 import io.vpnshare.core.CoreInstaller
 import io.vpnshare.prefs.Prefs
 import io.vpnshare.root.RootShell
+import io.vpnshare.service.ShareState
 
 /**
  * 接管总控：装配 assets/tproxy.sh 并执行 apply / status / cleanup。
  * 规则本体在脚本里，本类只负责参数注入、环境准备与结果解析。
  */
 object TetherManager {
+
+    /**
+     * 落盘后的脚本路径。
+     *
+     * 必须以「脚本文件 + 动作」的方式执行，而不是把脚本文本灌进 su 的 stdin：
+     * 脚本里的独立守护会用 $0 把自己重新拉起来，stdin 注入时 $0 是 su 会话的
+     * shell 名（sh），守护会去打开名为 sh 的文件并立刻失败 —— 那条兜底从来没生效过。
+     */
+    val SCRIPT_PATH: String get() = CoreInstaller.RUN + "/tproxy.sh"
 
     fun script(ctx: Context): String =
         ctx.assets.open("tproxy.sh").bufferedReader().use { it.readText() }
@@ -49,36 +59,74 @@ object TetherManager {
         )
     }
 
-    fun apply(ctx: Context, p: Prefs.Data): RootShell.Result {
-        val script = RuleBuilder.assemble(script(ctx), config(p), "on")
-        return RootShell.run(script, timeoutSec = 45)
-    }
-
-    fun cleanup(ctx: Context, p: Prefs.Data): RootShell.Result {
-        val script = RuleBuilder.assemble(script(ctx), config(p), "off")
-        return RootShell.run(script, timeoutSec = 45)
-    }
-
-    fun status(ctx: Context, p: Prefs.Data): RootShell.Result {
-        val script = RuleBuilder.assemble(script(ctx), config(p), "status")
-        return RootShell.run(script, timeoutSec = 30)
-    }
-
-    /** 规则是否已生效：nat 链存在且挂到了至少一个接口上 */
-    fun isActive(): Boolean {
-        val r = RootShell.run(
-            "iptables -t nat -S " + RuleBuilder.CHAIN_NAT + " >/dev/null 2>&1 && " +
-            "iptables -t nat -S PREROUTING 2>/dev/null | grep -q " + RuleBuilder.CHAIN_NAT + " && echo yes"
-        )
-        return r.out.contains("yes")
-    }
-
-    /** 内核是否在监听 redir / tproxy / dns 端口 */
     /**
-     * 逐个端口独立检查监听状态。
-     * 不用 "(a || b) | grep" 这种写法：子 shell + 管道在部分 ROM 的 su 会话里
-     * 会直接语法报错（syntax error: unexpected '('），导致三项全判为未监听。
+     * 共享接口的「身份」：接口名 + 该接口上的 IPv4 地址集合。
+     *
+     * 为什么要带地址：换热点或机场侧改了 DHCP 段时，接口名可能完全不变，
+     * 变的只是本机地址 —— 只盯接口名的话这种变化不会触发重装规则，
+     * 直到客户端连不上才被发现（对应 tproxy.sh 里那条「本机地址一律放行」）。
      */
+    fun tetherKey(p: Prefs.Data): String? {
+        val iface = detectIface(p) ?: return null
+        val addrs = RootShell.run("ip -o -4 addr show dev '" + iface + "' 2>/dev/null", timeoutSec = 10).out
+        return tetherKeyOf(iface, addrs)
+    }
+
+    /** 纯函数便于单测：接口名 + 地址集合（排序，保证同一网络下稳定可比） */
+    fun tetherKeyOf(iface: String?, addrOutput: String): String? {
+        if (iface.isNullOrBlank()) return null
+        val ips = TetherDetector.parseAddrs(addrOutput).map { it.ip }.sorted()
+        return iface + "|" + ips.joinToString(",")
+    }
+
+    /**
+     * 把装配好的脚本落盘到设备，返回可交给 sh 执行的路径；失败返回 null。
+     * 落盘失败时调用方退回 stdin 注入：规则照装，只是独立守护起不来。
+     */
+    private fun deploy(ctx: Context, p: Prefs.Data, action: String): String? = runCatching {
+        val text = RuleBuilder.assemble(script(ctx), config(p), action)
+        val stage = java.io.File(ctx.filesDir, "tproxy.sh")
+        stage.writeText(text)
+        val r = RootShell.run(
+            "mkdir -p '" + CoreInstaller.RUN + "' && " +
+                "cp -f '" + stage.absolutePath + "' '" + SCRIPT_PATH + "' && " +
+                "chmod 700 '" + SCRIPT_PATH + "' && echo deployed",
+            timeoutSec = 20
+        )
+        if (r.out.contains("deployed")) SCRIPT_PATH else null
+    }.getOrNull()
+
+    private fun exec(ctx: Context, p: Prefs.Data, action: String): RootShell.Result {
+        val path = deploy(ctx, p, action)
+        if (path != null) return RootShell.run("sh '" + path + "' " + action, timeoutSec = 45)
+        ShareState.log("WARN 脚本落盘失败，退回 stdin 注入（独立守护不会启动）")
+        return RootShell.run(RuleBuilder.assemble(script(ctx), config(p), action), timeoutSec = 45)
+    }
+
+    fun apply(ctx: Context, p: Prefs.Data): RootShell.Result = exec(ctx, p, "on")
+
+    fun cleanup(ctx: Context, p: Prefs.Data): RootShell.Result = exec(ctx, p, "off")
+
+    fun status(ctx: Context, p: Prefs.Data): RootShell.Result = exec(ctx, p, "status")
+
+    /** 需要检查监听的端口集合。抽成纯函数，便于单测钉死 —— 这类判断错了是静默事故。 */
+    fun portsToCheck(p: Prefs.Data): List<Int> = buildList {
+        add(p.redirPort)
+        add(p.tproxyPort)
+        add(p.dnsPort)
+        // mixed 端口必须查：出口探测正是走它。漏掉它会同时出两种错：
+        //   ① 状态表里没有 mixedPort 这个键，调用方读 state[mixedPort] 得到 null，
+        //      「端口齐全」永远判 false → 每次启动都把健康内核杀掉重启（断流）；
+        //   ② 只查 redir/tproxy/dns 时，一个「mixed 没绑上」的孤儿内核会被判健康并复用。
+        // http/socks 是可选监听（Prefs 默认 0），用户设了端口但内核没绑时不该拖累复用判定，
+        // 所以这里刻意不纳入。
+        if (p.mixedPort > 0) add(p.mixedPort)
+    }.distinct()
+
+    /** 全部必需端口都在监听。state 由 [listeningPortsDetailed] 给出。 */
+    fun allPortsListening(state: Map<Int, Boolean>, p: Prefs.Data): Boolean =
+        portsToCheck(p).all { state[it] == true }
+
     data class PortReport(val state: Map<Int, Boolean>, val raw: String)
 
     /**
@@ -98,7 +146,7 @@ object TetherManager {
         ports.associateWith { port -> Regex(":" + port + "(\\s|$)").containsMatchIn(raw) }
 
     fun listeningPortsDetailed(p: Prefs.Data): PortReport {
-        val ports = listOf(p.redirPort, p.tproxyPort, p.dnsPort)
+        val ports = portsToCheck(p)
         val r = RootShell.run("netstat -ltn 2>/dev/null; ss -ltn 2>/dev/null", timeoutSec = 20)
         val out = r.out
         val state = parsePortStates(out, ports)
@@ -107,8 +155,6 @@ object TetherManager {
             .joinToString(" / ")
         return PortReport(state, kept.ifBlank { out.take(300) })
     }
-
-    fun listeningPorts(p: Prefs.Data): Map<Int, Boolean> = listeningPortsDetailed(p).state
 
     fun ensureDirs(): RootShell.Result = RootShell.run(
         "mkdir -p " + CoreInstaller.RULESET + " " + CoreInstaller.PROVIDERS + " " + CoreInstaller.RUN + " && echo ok"

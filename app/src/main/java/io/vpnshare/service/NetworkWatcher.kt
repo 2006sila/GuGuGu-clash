@@ -21,6 +21,11 @@ object NetworkWatcher {
 
     @Volatile private var cb: ConnectivityManager.NetworkCallback? = null
     @Volatile private var lastApplied: String? = null
+    @Volatile private var lastAttemptId: String? = null
+    @Volatile private var lastAttemptAt: Long = 0L
+
+    /** 同一网络下失败后的重试间隔：onCapabilitiesChanged 会连着来，不设闸会打转 */
+    private const val RETRY_GUARD_MS = 30_000L
 
     /**
      * 专用后台线程。
@@ -92,6 +97,8 @@ object NetworkWatcher {
         }
         cb = null
         lastApplied = null
+        lastAttemptId = null
+        lastAttemptAt = 0L
     }
 
     /** 投递到后台线程执行（回调在主线程，不能在这里直接干活） */
@@ -107,19 +114,28 @@ object NetworkWatcher {
         val id = currentIdentity(ctx) ?: return
         val hit = NetworkRule.match(rules, id) ?: return
         if (hit.profileId == p.currentProfileId && lastApplied == id) return
+        val now = System.currentTimeMillis()
+        if (id == lastAttemptId && now - lastAttemptAt < RETRY_GUARD_MS) return
+        lastAttemptId = id
+        lastAttemptAt = now
 
         ShareState.log(
             "网络联动：当前 " + id + "，切到配置 " + hit.profileId +
                 (if (hit.group.isNotBlank()) " / 组 " + hit.group else "")
         )
-        lastApplied = id
         runCatching {
-            Prefs.save(ctx, Prefs.load(ctx).copy(currentProfileId = hit.profileId))
-            val prep = ProfileRunner.prepareConfig(ctx, Prefs.load(ctx))
+            // 顺序很关键：先按新配置生成 + 自检，通过之后才落盘 currentProfileId、才记 lastApplied。
+            // 反过来的话，自检失败会留下「落盘的配置 id ≠ 内核实际加载的配置」，
+            // 正是 startAll 里专门修过的那类 UI/实际不同步；而且 lastApplied 提前置位
+            // 会让同一网络下再也不重试。
+            val next = p.copy(currentProfileId = hit.profileId)
+            val prep = ProfileRunner.prepareConfig(ctx, next)
             if (!prep.ok) {
                 ShareState.log("WARN 网络联动：新配置未通过自检，保留旧配置 —— " + (prep.error ?: ""))
                 return
             }
+            Prefs.save(ctx, next)
+            lastApplied = id
             if (ProfileRunner.hotReload()) {
                 ShareState.log("OK  网络联动：已热重载新配置（" + prep.nodeCount + " 节点）")
             } else {

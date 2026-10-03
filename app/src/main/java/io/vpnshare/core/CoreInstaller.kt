@@ -29,8 +29,8 @@ object CoreInstaller {
 
     val SUPPORTED = listOf("arm64-v8a", "armeabi-v7a")
 
-    /** 内核运行身份：shell(2000)。详见 CoreManager.RUN_AS_UID 的说明 */
-    private val UID = CoreManager.RUN_AS_UID
+    /** 运行目录的文件属组：shell(2000)。**不是**内核运行身份，内核以 root 跑 */
+    private val GID = CoreManager.FILE_GROUP_GID
 
     data class Report(
         val ok: Boolean,
@@ -50,12 +50,12 @@ object CoreInstaller {
 
     /**
      * 修权限。必须【每次启动】都跑，不能只在安装时跑：
-     * 内核以 App uid 运行时，/data/adb 默认不可穿越、运行目录也不是 App 所有，
+     * 运行目录的属组与 /data/adb 的可穿越位会因重装、Magisk 更新等原因被重置，
      * 而安装逻辑在内核已存在时会整体跳过，导致改完权限也发不生效。
      */
     fun ensurePermissions(): RootShell.Result = RootShell.run(
         "chmod a+x /data/adb\n" +
-        "chgrp -R " + UID + " '" + BASE + "' 2>/dev/null\n" +
+        "chgrp -R " + GID + " '" + BASE + "' 2>/dev/null\n" +
         "chmod -R u+rwX,g+rX,o-rwx '" + BASE + "' 2>/dev/null\n" +
         "chmod 755 '" + CORE + "' 2>/dev/null\n" +
         "echo PERM_OK"
@@ -94,14 +94,15 @@ object CoreInstaller {
             script.append("' '").append(PROVIDERS).append("' '").append(RULESET).append("'\n")
             script.append("cp -f '").append(coreFile.absolutePath).append("' '").append(CORE).append("'\n")
             script.append("chmod 755 '").append(CORE).append("'\n")
-            // 内核以 App 自己的 uid 运行（本机 ColorOS 丢弃 root 进程的移动数据出站）。
-            // 但 /data/adb 默认对非 root 不可穿越，所以：
-            //   a+x  : 让降权后的进程能走进 /data/adb（仅可穿越，不能列目录）
-            //   chown: 把运行目录交给 App uid
-            //   u+rwX go-rwx: 只有 App 自己能读写，其他应用进不去，订阅凭据不外泄
+            // 内核以 root 运行（复测结论见 CoreManager.FILE_GROUP_GID）。这里设权限是为了：
+            //   a+x  : 保留 /data/adb 的可穿越位（部分 ROM / 工具链仍依赖它）
+            //   chgrp: 运行目录归 shell 组（历史上为降权运行准备；实测 adb shell 仍然读不到
+            //          /data/adb/vpnshare —— /data/adb 本身是 0700 root，a+x 只给了穿越权，
+            //          排障要读运行目录得用 root，别指望 shell）
+            //   u+rwX go-rwx: 只有 root 与 shell 组能读写，其他应用进不去，订阅凭据不外泄
             script.append("chmod a+x /data/adb\n")
-            // 运行目录归 shell 组：uid 2000 靠组权限读，其他应用（o）仍被拒，订阅凭据不外泄
-            script.append("chgrp -R ").append(UID).append(" '" + BASE + "' 2>/dev/null\n")
+            // 运行目录归 shell 组；其他应用（o）仍被拒，订阅凭据不外泄
+            script.append("chgrp -R ").append(GID).append(" '" + BASE + "' 2>/dev/null\n")
             script.append("chmod -R u+rwX,g+rX,o-rwx '" + BASE + "' 2>/dev/null\n")
             script.append("chcon u:object_r:magisk_file:s0 '").append(CORE).append("' 2>/dev/null || true\n")
             if (geoCount > 0) {

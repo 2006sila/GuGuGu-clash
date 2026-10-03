@@ -19,7 +19,7 @@ class EmergencyTest {
         assertTrue(s.contains("-t nat -D PREROUTING"))
         assertTrue(s.contains("-t mangle -D PREROUTING"))
         assertTrue(s.contains("-D FORWARD"))
-        assertTrue("IPv6 泄漏规则也要摘", s.contains("ip6tables -D FORWARD"))
+        assertTrue("IPv6 泄漏规则也要摘", s.contains("ip6tables -w 100 -D FORWARD"))
     }
 
     @Test
@@ -45,7 +45,23 @@ class EmergencyTest {
             l.contains("iptables ") && listOf(" -F ", " -X ", " -D ", " -A ", " -I ").any { l.contains(it) }
         }
         assertTrue("应该有会改规则的调用", mutating.isNotEmpty())
-        for (l in mutating) assertTrue("这行没等锁：" + l, l.contains("-w 5"))
+        // -w 100：热点开关与网络抖动时锁竞争激烈，-w 5 秒经常不够（两模块也是 100）
+        for (l in mutating) assertTrue("这行没等锁：" + l, l.contains("-w 100"))
+    }
+
+    @Test
+    fun sweepsInterfacesThatCurrentlyExistToo() {
+        // 只扫固定名单会漏掉 ap2 / swlan1 / wlan3 这类名字（检测侧接受通配前缀），
+        // 名字对不上就摘不掉跳转，电脑继续断网 —— 所以先动态枚举一遍当前接口。
+        assertTrue("必须动态枚举当前接口", s.contains("ip -o link show"))
+        assertTrue("动态枚举要剥掉 @ifX 后缀", s.contains("cut -d'@' -f1"))
+    }
+
+    @Test
+    fun markAndTableComeFromRuleBuilder() {
+        assertTrue(s.contains("fwmark " + io.vpnshare.tether.RuleBuilder.FWMARK +
+            " lookup " + io.vpnshare.tether.RuleBuilder.TABLE_ID))
+        assertTrue(s.contains("ip route flush table " + io.vpnshare.tether.RuleBuilder.TABLE_ID))
     }
 
     @Test

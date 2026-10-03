@@ -58,6 +58,21 @@ class NetworkActivity : BaseListActivity() {
             afterSave()
         }
         addEntry(
+            R.drawable.ic_shield, "专用 DNS",
+            if (p.managePrivateDns) "共享期间自动关闭（DoT 会绕过 DNS 劫持）"
+            else "不处理（手机开着私人 DNS 时分流可能不准）"
+        ) {
+            val next = !p.managePrivateDns
+            Prefs.save(this, p.copy(managePrivateDns = next))
+            android.widget.Toast.makeText(
+                this,
+                if (next) "共享时自动关闭专用 DNS，停止时恢复原值；重启共享生效"
+                else "已关闭该处理；重启共享生效",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+            afterSave()
+        }
+        addEntry(
             R.drawable.ic_connections, "流量嗅探",
             if (p.sniffEnable) "已开启（提升分流准确率）" else "未开启"
         ) { sniffDialog() }
