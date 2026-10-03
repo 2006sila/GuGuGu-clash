@@ -18,7 +18,7 @@ val releaseStoreFile = keystoreProps.getProperty("storeFile")
 val hasReleaseSigning = !releaseStoreFile.isNullOrBlank() && file(releaseStoreFile).exists()
 
 // 版本号只在这里写一次：产物名也要用（见文件末尾的 androidComponents）
-val appVersionName = "1.0.4"
+val appVersionName = "1.1.0"
 
 android {
     namespace = "io.guguguclash"
@@ -28,7 +28,7 @@ android {
         applicationId = "io.guguguclash"
         minSdk = 24
         targetSdk = 34
-        versionCode = 5
+        versionCode = 6
         versionName = appVersionName
     }
 
